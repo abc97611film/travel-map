@@ -166,7 +166,6 @@ const getDisplayCityName = (englishName) => {
 
 const getDisplayCountryName = (englishName) => COUNTRY_TRANSLATIONS[englishName] || englishName;
 
-// 自定義 24H 時間選擇器元件
 const TimeSelector = ({ value, onChange }) => {
   const [hh, mm] = (value || '').split(':');
   const handleChange = (type, val) => {
@@ -198,7 +197,7 @@ export default function TravelMapApp() {
   
   // 狀態管理：匯出選項
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [exportMode, setExportMode] = useState('all'); 
+  const [exportMode, setExportMode] = useState('all'); // 'all' or 'range'
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
   const [exportDateRangeText, setExportDateRangeText] = useState('');
@@ -231,6 +230,7 @@ export default function TravelMapApp() {
   const captureRef = useRef(null); 
   const mapInstanceRef = useRef(null);
   const geoJsonLayerRef = useRef(null);
+  const tripLinesRef = useRef([]); 
   const pickingLocationMode = useRef(null); 
   const layersRef = useRef([]); 
   const pickerMarkerRef = useRef(null);
@@ -241,7 +241,6 @@ export default function TravelMapApp() {
     latestDataRef.current = { trips, allCountries };
   }, [trips, allCountries]);
 
-  // ★★★ 修正：使用標準 signInAnonymously ★★★
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -265,14 +264,15 @@ export default function TravelMapApp() {
         setLoading(false);
       },
       (error) => {
-        // Fallback for index error
-        const fallbackQ = collection(db, 'artifacts', appId, 'users', user.uid, 'travel_trips');
-        onSnapshot(fallbackQ, (snap) => {
-            const loaded = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            loaded.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-            setTrips(loaded);
-            setLoading(false);
-        });
+        if (error.code === 'failed-precondition') {
+             const fallbackQ = collection(db, 'artifacts', appId, 'users', user.uid, 'travel_trips');
+             onSnapshot(fallbackQ, (snap) => {
+                const loaded = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                loaded.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                setTrips(loaded);
+                setLoading(false);
+             });
+        }
       }
     );
     return () => unsubscribe();
@@ -322,6 +322,7 @@ export default function TravelMapApp() {
     if (!country) return;
     const setLoading = type === 'origin' ? setIsLoadingOriginCities : setIsLoadingDestCities;
     const setCities = type === 'origin' ? setOriginCities : setDestCities;
+    const setManual = type === 'origin' ? setIsOriginManual : setIsDestManual;
 
     setLoading(true);
     try {
@@ -337,20 +338,28 @@ export default function TravelMapApp() {
           label: getDisplayCityName(city),
           original: city
         }));
-        processedCities.sort((a, b) => a.label.localeCompare(b.label));
+        processedCities.sort((a, b) => {
+            const isAChinese = /[\u4e00-\u9fa5]/.test(a.label);
+            const isBChinese = /[\u4e00-\u9fa5]/.test(b.label);
+            if (isAChinese && !isBChinese) return -1;
+            if (!isAChinese && isBChinese) return 1;
+            return a.label.localeCompare(b.label);
+        });
         setCities(processedCities);
+        setManual(false); 
       } else {
         setCities([]);
+        setManual(true); 
       }
     } catch (error) {
       console.error(`Failed to fetch cities for ${country}`, error);
       setCities([]);
+      setManual(true);
     } finally {
       setLoading(false);
     }
   };
 
-  // ★★★ 修正：移除動態載入，直接使用 import ★★★
   useEffect(() => {
     if (mapInstanceRef.current || !mapContainerRef.current) return;
     
@@ -363,7 +372,7 @@ export default function TravelMapApp() {
       crossOrigin: true 
     }).addTo(map);
     mapInstanceRef.current = map;
-    setLeafletLoaded(true); // 標記為已載入
+    setLeafletLoaded(true); 
 
     map.on('click', (e) => {
       if (pickingLocationMode.current) {
@@ -743,7 +752,6 @@ export default function TravelMapApp() {
     }, 500);
   };
 
-  // ★★★ 修正 2: 將 renderCityInput 函式定義在 App 組件內部 ★★★
   const renderCityInput = (type) => {
     const isOrigin = type === 'origin';
     const cities = isOrigin ? originCities : destCities;
@@ -863,7 +871,7 @@ export default function TravelMapApp() {
           {/* 匯出按鈕：開啟選項視窗 */}
           <button 
             onClick={() => setIsExportModalOpen(true)}
-            disabled={isExporting}
+            disabled={!html2canvas || isExporting}
             className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="匯出地圖圖片"
           >
@@ -985,7 +993,7 @@ export default function TravelMapApp() {
                   </div>
                 </div>
               ))
-            }
+            )}
           </div>
           
           <div className="p-4 border-t bg-gray-50">
