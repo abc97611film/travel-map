@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map } from 'lucide-react';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar } from 'lucide-react';
 
 // -----------------------------------------------------------------------------
-// 1. Firebase 初始化
+// 1. Firebase 初始化 (您的專屬金鑰)
 // -----------------------------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyCFNcDaHTOx4lETnJk844Eq6EZs1AbF9_8",
@@ -119,6 +119,7 @@ const CITY_TRANSLATIONS = {
 };
 
 // ★★★ 預設城市清單 (解決 API 缺漏問題) ★★★
+// 當選擇這些國家時，直接使用這裡的清單，不請求 API
 const PREDEFINED_CITIES = {
   "North Macedonia": ["Skopje", "Ohrid", "Bitola", "Kumanovo", "Prilep", "Tetovo", "Veles", "Stip", "Gostivar", "Strumica"],
   "Kosovo": ["Pristina", "Prizren", "Peja", "Gjakova", "Mitrovica"],
@@ -230,9 +231,6 @@ const TimeSelector = ({ value, onChange }) => {
   );
 };
 
-// -----------------------------------------------------------------------------
-// 4. 主應用程式元件
-// -----------------------------------------------------------------------------
 export default function TravelMapApp() {
   const [user, setUser] = useState(null);
   const [trips, setTrips] = useState([]);
@@ -310,6 +308,7 @@ export default function TravelMapApp() {
       const params = new URLSearchParams(window.location.search);
       const mapIdFromUrl = params.get('map');
       if (mapIdFromUrl) {
+          // 如果網址有 ID，先開啟輸入框並設定為「進入模式」
           setTempMapIdInput(mapIdFromUrl);
           setIdMode('enter');
           setIsIdModalOpen(true);
@@ -331,17 +330,21 @@ export default function TravelMapApp() {
 
       setIsCheckingId(true);
       
+      // 密碼存放路徑: artifacts/{appId}/users/{cleanId}/settings/auth
       const authDocRef = doc(db, 'artifacts', appId, 'users', cleanId, 'settings', 'auth');
 
       try {
           const authSnap = await getDoc(authDocRef);
 
           if (idMode === 'create') {
+              // --- 建立新地圖 ---
               if (authSnap.exists()) {
+                  // ID 已被使用 (有密碼設定)
                   setIdError("此 ID 已被使用，請更換一個");
                   setIsCheckingId(false);
                   return;
               } else {
+                  // 檢查是否有舊資料 (無密碼但有行程) - 簡單起見，有資料就算佔用
                   const tripQ = query(collection(db, 'artifacts', appId, 'users', cleanId, 'travel_trips'), limit(1));
                   const tripSnap = await getDocs(tripQ);
                   if (!tripSnap.empty) {
@@ -350,12 +353,14 @@ export default function TravelMapApp() {
                       return;
                   }
 
+                  // 建立新密碼
                   await setDoc(authDocRef, { 
                       password: password,
                       createdAt: serverTimestamp()
                   });
               }
           } else {
+              // --- 進入我的地圖 ---
               if (authSnap.exists()) {
                   const storedData = authSnap.data();
                   if (storedData.password !== password) {
@@ -364,6 +369,7 @@ export default function TravelMapApp() {
                       return;
                   }
               } else {
+                  // 如果沒有密碼檔 (可能是舊地圖)，檢查是否有行程
                   const tripQ = query(collection(db, 'artifacts', appId, 'users', cleanId, 'travel_trips'), limit(1));
                   const tripSnap = await getDocs(tripQ);
                   if (tripSnap.empty) {
@@ -371,9 +377,11 @@ export default function TravelMapApp() {
                        setIsCheckingId(false);
                        return;
                   }
+                  // 是舊地圖，允許進入
               }
           }
 
+          // 驗證通過
           setCurrentMapId(cleanId);
           setIsIdModalOpen(false);
           const newUrl = new URL(window.location.href);
@@ -400,7 +408,7 @@ export default function TravelMapApp() {
   const handleSwitchMap = () => {
       const confirmSwitch = window.confirm("確定要登出並切換地圖嗎？");
       if (confirmSwitch) {
-          window.location.reload(); 
+          window.location.reload(); // 最簡單的登出方式：重新整理
       }
   };
 
@@ -458,7 +466,7 @@ export default function TravelMapApp() {
 
   // ★★★ 監聽資料庫：只監聽當前 mapId ★★★
   useEffect(() => {
-    if (!user || !currentMapId) return; 
+    if (!user || !currentMapId) return; // 沒 ID 不動作
 
     const q = query(collection(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, 
@@ -496,15 +504,15 @@ export default function TravelMapApp() {
       }
     );
     return () => unsubscribe();
-  }, [user, currentMapId]); 
+  }, [user, currentMapId]); // 當 Map ID 改變時重新監聽
 
-  // ★★★ 修正排序：台灣優先 -> 匈牙利 -> 其他 ★★★
   useEffect(() => {
     const countries = Object.entries(COUNTRY_TRANSLATIONS).map(([key, value]) => ({
         name: key,
         label: `${value} (${key})`
     }));
     countries.sort((a, b) => {
+        // 修正排序：台灣 -> 匈牙利 -> 其他
         if (a.name === "Taiwan") return -1;
         if (b.name === "Taiwan") return 1;
         if (a.name === "Hungary") return -1;
@@ -537,7 +545,7 @@ export default function TravelMapApp() {
     setLoading(true);
     setManual(false); 
 
-    // 1. 先檢查是否有預定義的城市清單
+    // 1. 先檢查是否有預定義的城市清單 (包含北馬其頓)
     if (PREDEFINED_CITIES[country]) {
         const processedCities = PREDEFINED_CITIES[country].map(city => ({
             value: getDisplayCityName(city),
@@ -547,7 +555,7 @@ export default function TravelMapApp() {
         processedCities.sort((a, b) => a.label.localeCompare(b.label));
         setCities(processedCities);
         setLoading(false);
-        return; 
+        return; // 直接返回，不用去 Call API
     }
 
     // 2. 如果沒有預定義，才嘗試 API
@@ -654,6 +662,7 @@ export default function TravelMapApp() {
 
     if (geoJsonLayerRef.current) {
         const today = new Date().toISOString().split('T')[0];
+        // 只要行程是過去或進行中，相關國家都亮起
         const activeTrips = tripsToRender.filter(t => t.dateStart && t.dateStart <= today);
         const visitedCountries = new Set(activeTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
         
@@ -675,6 +684,7 @@ export default function TravelMapApp() {
         const isFutureOrNoDate = !trip.dateStart || trip.dateStart > today;
         let polyline;
         
+        // ★★★ 確保使用抓取到的路徑資料 ★★★
         if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
             polyline = L.polyline(trip.routePath, { color: typeConfig.color, weight: 3, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null }).addTo(map);
         } else {
@@ -777,6 +787,7 @@ export default function TravelMapApp() {
     let finalRoutePath = null;
     const transportType = TRANSPORT_TYPES[formData.transport];
     
+    // ★★★ 確保路徑抓取邏輯 (開車/火車/公車都抓) ★★★
     if (transportType && transportType.useRoute && formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
         try {
             const url = `https://router.project-osrm.org/route/v1/driving/${formData.originLng},${formData.originLat};${formData.destLng},${formData.destLat}?overview=full&geometries=geojson`;
@@ -790,6 +801,7 @@ export default function TravelMapApp() {
     
     const finalData = { ...formData, routePath: finalRoutePath ? JSON.stringify(finalRoutePath) : null };
 
+    // 使用 currentMapId 存入資料
     try {
       if (editingId) {
         await updateDoc(doc(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips', editingId), { ...finalData, updatedAt: serverTimestamp() });
@@ -813,113 +825,135 @@ export default function TravelMapApp() {
   };
 
   // ★★★ 匯出功能修復：強制載入與錯誤處理 ★★★
-  const performExport = async () => {
-    // 1. 如果工具還沒準備好，嘗試提示並返回
-    if (!window.html2canvas) {
-        alert("匯出工具正在下載中，請稍等 3 秒後再試一次！");
-        return;
-    }
-    
-    if (!captureRef.current || !mapInstanceRef.current) {
-        alert("地圖尚未完全載入，請稍候。");
-        return;
-    }
+  const handleExport = async () => {
+      if (!window.html2canvas) {
+          // 強制重試一次載入
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+          script.onload = () => handleExport(); // 載入完再試一次
+          document.body.appendChild(script);
+          alert("正在下載截圖工具，請稍等 3 秒後再按一次...");
+          return;
+      }
 
-    setIsExporting(true);
-    setIsExportModalOpen(false);
-    const map = mapInstanceRef.current;
-    
-    const originalCenter = map.getCenter();
-    const originalZoom = map.getZoom();
-    const controls = document.querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution');
-    controls.forEach(el => el.style.display = 'none');
+      if (!captureRef.current) {
+          alert("錯誤：找不到地圖畫面，請重新整理網頁。");
+          return;
+      }
 
-    const originalStyle = {
-        width: captureRef.current.style.width,
-        height: captureRef.current.style.height,
-        position: captureRef.current.style.position,
-        top: captureRef.current.style.top,
-        left: captureRef.current.style.left,
-        zIndex: captureRef.current.style.zIndex,
-    };
-    captureRef.current.style.width = '1600px';
-    captureRef.current.style.height = '1200px';
-    captureRef.current.style.position = 'fixed';
-    captureRef.current.style.top = '0';
-    captureRef.current.style.left = '0';
-    captureRef.current.style.zIndex = '9999';
-    map.invalidateSize();
+      setIsExporting(true);
+      setIsExportModalOpen(false);
 
-    let filteredTrips = trips;
-    if (exportMode === 'range' && exportStartDate && exportEndDate) {
-        filteredTrips = trips.filter(t => t.dateStart >= exportStartDate && t.dateStart <= exportEndDate);
-    }
-    if (filteredTrips.length > 0) {
-        const dates = filteredTrips.map(t => t.dateStart).filter(Boolean).sort();
-        if (dates.length > 0) setExportDateRangeText(`${dates[0]} ~ ${dates[dates.length - 1]}`);
-        else setExportDateRangeText('不限日期');
-    } else { setExportDateRangeText(''); }
+      // 1. 鎖定地圖狀態，隱藏控制項
+      const map = mapInstanceRef.current;
+      const originalCenter = map.getCenter();
+      const originalZoom = map.getZoom();
+      
+      const controls = document.querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution');
+      controls.forEach(el => el.style.display = 'none');
 
-    renderMapLayers(filteredTrips);
-    let bounds = window.L.latLngBounds([]);
-    let hasPoints = false;
-    filteredTrips.forEach(t => {
-        if (t.originLat && t.originLng) { bounds.extend([t.originLat, t.originLng]); hasPoints = true; }
-        if (t.destLat && t.destLng) { bounds.extend([t.destLat, t.destLng]); hasPoints = true; }
-    });
-    if (hasPoints && bounds.isValid()) map.fitBounds(bounds, { padding: [50, 50], animate: false });
-    else map.setView([20, 0], 2, { animate: false });
+      // 2. 設定匯出尺寸 (4:3)
+      const originalStyle = {
+          width: captureRef.current.style.width,
+          height: captureRef.current.style.height,
+          position: captureRef.current.style.position,
+          top: captureRef.current.style.top,
+          left: captureRef.current.style.left,
+          zIndex: captureRef.current.style.zIndex,
+      };
 
-    // 2. 延遲截圖：給地圖一點時間渲染
-    setTimeout(async () => {
-        try {
-            await new Promise(resolve => setTimeout(resolve, 1500)); 
-            
-            // 3. 強制使用 window.html2canvas 呼叫
-            const canvas = await window.html2canvas(captureRef.current, { 
-                useCORS: true, 
-                // 4. 重要：移除 allowTaint，避免安全性錯誤阻擋下載
-                logging: false, 
-                scale: 2,  // 提升畫質
-                width: 1600, 
-                height: 1200, 
-                windowWidth: 1600, 
-                windowHeight: 1200 
-            });
-            
-            canvas.toBlob((blob) => {
-                if (!blob) { alert("匯出失敗：無法產生圖片檔案"); return; }
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                const timestamp = new Date().toISOString().slice(0,10);
-                const rangeText = exportMode === 'range' ? `-${exportStartDate}-to-${exportEndDate}` : '-all';
-                link.download = `travel-map${rangeText}-${timestamp}.png`;
-                link.href = url;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-            }, 'image/png');
+      captureRef.current.style.width = '1600px';
+      captureRef.current.style.height = '1200px';
+      captureRef.current.style.position = 'fixed';
+      captureRef.current.style.top = '0';
+      captureRef.current.style.left = '0';
+      captureRef.current.style.zIndex = '9999';
+      map.invalidateSize();
 
-        } catch (err) { 
-            console.error("Export failed:", err); 
-            alert(`匯出發生錯誤: ${err.message || '未知原因'}`); 
-        } finally {
-            // 復原
-            captureRef.current.style.width = originalStyle.width;
-            captureRef.current.style.height = originalStyle.height;
-            captureRef.current.style.position = originalStyle.position;
-            captureRef.current.style.top = originalStyle.top;
-            captureRef.current.style.left = originalStyle.left;
-            captureRef.current.style.zIndex = originalStyle.zIndex;
-            controls.forEach(el => el.style.display = '');
-            map.invalidateSize();
-            map.setView(originalCenter, originalZoom, { animate: false });
-            renderMapLayers(trips); 
-            setIsExporting(false);
-            setExportDateRangeText('');
-        }
-    }, 1000);
+      // 3. 篩選資料 & 自動縮放 (Auto-Fit)
+      let filteredTrips = trips;
+      if (exportMode === 'range' && exportStartDate && exportEndDate) {
+          filteredTrips = trips.filter(t => t.dateStart >= exportStartDate && t.dateStart <= exportEndDate);
+          setExportDateRangeText(`${exportStartDate} ~ ${exportEndDate}`);
+      } else {
+          // 如果全部日期，找出最早和最晚
+          const dates = filteredTrips.map(t => t.dateStart).filter(Boolean).sort();
+          if (dates.length > 0) {
+              setExportDateRangeText(`${dates[0]} ~ ${dates[dates.length - 1]}`);
+          } else {
+              setExportDateRangeText('不限日期');
+          }
+      }
+
+      renderMapLayers(filteredTrips);
+
+      // 自動縮放邏輯
+      const bounds = window.L.latLngBounds([]);
+      let hasPoints = false;
+      filteredTrips.forEach(t => {
+          if (t.originLat && t.originLng) { bounds.extend([t.originLat, t.originLng]); hasPoints = true; }
+          if (t.destLat && t.destLng) { bounds.extend([t.destLat, t.destLng]); hasPoints = true; }
+          // 如果有路徑，也要納入範圍
+          if (t.routePath) {
+             const path = typeof t.routePath === 'string' ? JSON.parse(t.routePath) : t.routePath;
+             if (Array.isArray(path)) path.forEach(p => bounds.extend(p));
+          }
+      });
+
+      if (hasPoints && bounds.isValid()) {
+          map.fitBounds(bounds, { padding: [50, 50], animate: false });
+      } else {
+          map.setView([20, 0], 2, { animate: false }); // 沒資料就看世界地圖
+      }
+
+      // 4. 截圖
+      setTimeout(async () => {
+          try {
+              await new Promise(resolve => setTimeout(resolve, 1500)); // 等地圖渲染
+              const canvas = await window.html2canvas(captureRef.current, {
+                  useCORS: true,       // 允許跨域圖片 (地圖瓦片)
+                  allowTaint: false,   // 關閉汙染 (關鍵修正)
+                  logging: false,
+                  scale: 2,            // 2倍解析度
+                  width: 1600,
+                  height: 1200,
+                  windowWidth: 1600,
+                  windowHeight: 1200
+              });
+
+              // 轉存下載
+              canvas.toBlob((blob) => {
+                  if (!blob) throw new Error("Canvas is empty");
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.download = `travel-map-${new Date().toISOString().slice(0,10)}.png`;
+                  link.href = url;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(url);
+              }, 'image/png');
+
+          } catch (err) {
+              console.error(err);
+              alert("匯出失敗，請檢查網路連線或稍後再試。");
+          } finally {
+              // 5. 復原畫面
+              captureRef.current.style.width = originalStyle.width;
+              captureRef.current.style.height = originalStyle.height;
+              captureRef.current.style.position = originalStyle.position;
+              captureRef.current.style.top = originalStyle.top;
+              captureRef.current.style.left = originalStyle.left;
+              captureRef.current.style.zIndex = originalStyle.zIndex;
+              
+              controls.forEach(el => el.style.display = '');
+              map.invalidateSize();
+              map.setView(originalCenter, originalZoom, { animate: false });
+              renderMapLayers(trips); // 恢復顯示所有行程
+              setIsExporting(false);
+              setExportDateRangeText('');
+          }
+      }, 1000);
   };
 
   const renderCityInput = (type) => {
@@ -1053,8 +1087,7 @@ export default function TravelMapApp() {
 
           <button 
             onClick={() => setIsExportModalOpen(true)}
-            disabled={isExporting} // 現在只看是否正在匯出，不看 libLoaded 以避免誤判
-            className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-blue-600"
+            className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm transition-colors border border-blue-600"
             title="匯出地圖圖片"
           >
             {isExporting ? <Loader className="animate-spin" size={16}/> : <Download size={16} />}
@@ -1198,7 +1231,7 @@ export default function TravelMapApp() {
         </div>
       </div>
       
-      {/* ID 輸入 Modal */}
+      {/* ID 輸入 Modal - 分頁設計 */}
       {isIdModalOpen && (
           <div className="fixed inset-0 z-[3000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
