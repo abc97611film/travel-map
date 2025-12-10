@@ -4,8 +4,6 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2 } from 'lucide-react';
 
-// 注意：不使用 import L / html2canvas，改用 CDN 動態載入，確保預覽與本機皆可執行
-
 // -----------------------------------------------------------------------------
 // 1. Firebase 初始化 (您的專屬金鑰)
 // -----------------------------------------------------------------------------
@@ -32,7 +30,99 @@ try {
 const appId = 'travel-map-v1'; 
 
 // -----------------------------------------------------------------------------
-// 2. 常數與輔助設定
+// 2. 巨量翻譯資料庫 (繁體中文 - 台灣慣用語)
+// -----------------------------------------------------------------------------
+const COUNTRY_TRANSLATIONS = {
+  // 亞洲
+  "Taiwan": "台灣", "Japan": "日本", "South Korea": "韓國", "Korea, South": "韓國", "China": "中國",
+  "Hong Kong": "香港", "Macao": "澳門", "Singapore": "新加坡", "Malaysia": "馬來西亞",
+  "Thailand": "泰國", "Vietnam": "越南", "Philippines": "菲律賓", "Indonesia": "印尼",
+  "India": "印度", "Cambodia": "柬埔寨", "Myanmar": "緬甸", "Laos": "寮國",
+  "Mongolia": "蒙古", "Nepal": "尼泊爾", "Sri Lanka": "斯里蘭卡", "Maldives": "馬爾地夫",
+  
+  // 歐洲
+  "France": "法國", "Germany": "德國", "United Kingdom": "英國", "Italy": "義大利", 
+  "Spain": "西班牙", "Netherlands": "荷蘭", "Belgium": "比利時", "Switzerland": "瑞士",
+  "Austria": "奧地利", "Czech Republic": "捷克", "Poland": "波蘭", "Hungary": "匈牙利",
+  "Portugal": "葡萄牙", "Greece": "希臘", "Sweden": "瑞典", "Norway": "挪威",
+  "Finland": "芬蘭", "Denmark": "丹麥", "Ireland": "愛爾蘭", "Iceland": "冰島",
+  "Luxembourg": "盧森堡", "Monaco": "摩納哥", "Vatican City": "梵蒂岡", "Liechtenstein": "列支敦斯登",
+  "Malta": "馬爾他", "Cyprus": "賽普勒斯", "Estonia": "愛沙尼亞", "Latvia": "拉脫維亞",
+  "Lithuania": "立陶宛", "Slovakia": "斯洛伐克", "Slovenia": "斯洛維尼亞", "Croatia": "克羅埃西亞",
+  "Romania": "羅馬尼亞", "Bulgaria": "保加利亞", "Serbia": "塞爾維亞", "Bosnia and Herzegovina": "波士尼亞",
+  "Ukraine": "烏克蘭", "Russia": "俄羅斯", "Turkey": "土耳其", "North Macedonia": "北馬其頓",
+  "Albania": "阿爾巴尼亞", "Montenegro": "蒙特內哥羅", "Andorra": "安道爾", "San Marino": "聖馬利諾",
+  
+  // 美洲
+  "United States": "美國", "Canada": "加拿大", "Mexico": "墨西哥", "Brazil": "巴西", 
+  "Argentina": "阿根廷", "Chile": "智利", "Peru": "秘魯", "Colombia": "哥倫比亞",
+  "Bolivia": "玻利維亞", "Ecuador": "厄瓜多", "Paraguay": "巴拉圭", "Uruguay": "烏拉圭",
+  "Venezuela": "委內瑞拉", "Cuba": "古巴", "Jamaica": "牙買加", "Costa Rica": "哥斯大黎加",
+  "Panama": "巴拿馬",
+  
+  // 大洋洲
+  "Australia": "澳洲", "New Zealand": "紐西蘭", "Fiji": "斐濟", "Palau": "帛琉", "Guam": "關島",
+
+  // 中東與非洲
+  "Egypt": "埃及", "South Africa": "南非", "Morocco": "摩洛哥", "Kenya": "肯亞", "Tanzania": "坦尚尼亞",
+  "United Arab Emirates": "阿拉伯聯合大公國", "Qatar": "卡達", "Saudi Arabia": "沙烏地阿拉伯",
+  "Israel": "以色列", "Jordan": "約旦", "Iran": "伊朗", "Iraq": "伊拉克"
+};
+
+const CITY_TRANSLATIONS = {
+  // 台灣
+  "Taipei": "台北", "Kaohsiung": "高雄", "Taichung": "台中", "Tainan": "台南", "Taoyuan": "桃園", "Hsinchu": "新竹",
+  // 日本/韓國
+  "Tokyo": "東京", "Osaka": "大阪", "Kyoto": "京都", "Seoul": "首爾", "Busan": "釜山", "Sapporo": "札幌", "Fukuoka": "福岡", "Okinawa": "沖繩",
+  // 歐洲熱門
+  "Paris": "巴黎", "Lyon": "里昂", "Nice": "尼斯",
+  "Berlin": "柏林", "Munich": "慕尼黑", "Frankfurt": "法蘭克福", "Hamburg": "漢堡",
+  "London": "倫敦", "Edinburgh": "愛丁堡", "Manchester": "曼徹斯特",
+  "Rome": "羅馬", "Milan": "米蘭", "Venice": "威尼斯", "Florence": "佛羅倫斯", "Naples": "拿坡里",
+  "Madrid": "馬德里", "Barcelona": "巴塞隆納", "Seville": "塞維亞",
+  "Amsterdam": "阿姆斯特丹", "Rotterdam": "鹿特丹",
+  "Brussels": "布魯塞爾", "Bruges": "布魯日",
+  "Zurich": "蘇黎世", "Geneva": "日內瓦", "Bern": "伯恩", "Lucerne": "琉森",
+  "Vienna": "維也納", "Salzburg": "薩爾斯堡", "Hallstatt": "哈爾施塔特",
+  "Prague": "布拉格", "Cesky Krumlov": "庫倫洛夫",
+  "Budapest": "布達佩斯", "Warsaw": "華沙", "Krakow": "克拉科夫",
+  "Stockholm": "斯德哥爾摩", "Copenhagen": "哥本哈根", "Oslo": "奧斯陸", "Helsinki": "赫爾辛基",
+  "Athens": "雅典", "Santorini": "聖托里尼",
+  "Istanbul": "伊斯坦堡", "Cappadocia": "卡帕多奇亞",
+  "Lisbon": "里斯本", "Porto": "波多",
+  "Dubrovnik": "杜布羅夫尼克", "Split": "斯普利特", "Zagreb": "札格瑞布",
+  "Moscow": "莫斯科", "Saint Petersburg": "聖彼得堡",
+  
+  // 美洲/其他
+  "New York": "紐約", "Los Angeles": "洛杉磯", "San Francisco": "舊金山", "Chicago": "芝加哥",
+  "Toronto": "多倫多", "Vancouver": "溫哥華",
+  "Sydney": "雪梨", "Melbourne": "墨爾本", "Auckland": "奧克蘭",
+  "Bangkok": "曼谷", "Chiang Mai": "清邁", "Singapore": "新加坡", "Dubai": "杜拜"
+};
+
+// 格式化顯示名稱：中文 (英文)
+const getDisplayCityName = (englishName) => {
+  if (!englishName) return '';
+  // 移除可能存在的 "City" 字尾以增加匹配率
+  const cleanName = englishName.replace(' City', '');
+  const chinese = CITY_TRANSLATIONS[cleanName] || CITY_TRANSLATIONS[englishName];
+  if (chinese) {
+    return `${chinese} (${englishName})`;
+  }
+  return englishName;
+};
+
+// 格式化顯示名稱：中文 (英文)
+const getDisplayCountryName = (englishName) => {
+    const chinese = COUNTRY_TRANSLATIONS[englishName];
+    if (chinese) {
+        return `${chinese} (${englishName})`;
+    }
+    return englishName;
+};
+
+// -----------------------------------------------------------------------------
+// 3. 設定與 Helper Functions
 // -----------------------------------------------------------------------------
 const TRANSPORT_TYPES = {
   plane: { label: '飛機', color: '#2563eb', icon: Plane, useRoute: false },
@@ -81,64 +171,7 @@ const CURRENCIES = [
 const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
-// --- 翻譯資料庫 ---
-const COUNTRY_TRANSLATIONS = {
-  "Taiwan": "台灣", 
-  "France": "法國", "Germany": "德國", "United Kingdom": "英國", "Italy": "義大利", 
-  "Spain": "西班牙", "Netherlands": "荷蘭", "Belgium": "比利時", "Switzerland": "瑞士",
-  "Austria": "奧地利", "Czech Republic": "捷克", "Poland": "波蘭", "Hungary": "匈牙利",
-  "Portugal": "葡萄牙", "Greece": "希臘", "Sweden": "瑞典", "Norway": "挪威",
-  "Finland": "芬蘭", "Denmark": "丹麥", "Ireland": "愛爾蘭", "Iceland": "冰島",
-  "Luxembourg": "盧森堡", "Monaco": "摩納哥", "Vatican City": "梵蒂岡", "Liechtenstein": "列支敦斯登",
-  "Malta": "馬爾他", "Cyprus": "賽普勒斯", "Estonia": "愛沙尼亞", "Latvia": "拉脫維亞",
-  "Lithuania": "立陶宛", "Slovakia": "斯洛伐克", "Slovenia": "斯洛維尼亞", "Croatia": "克羅埃西亞",
-  "Romania": "羅馬尼亞", "Bulgaria": "保加利亞", "Serbia": "塞爾維亞", "Bosnia and Herzegovina": "波士尼亞",
-  "Ukraine": "烏克蘭", "Russia": "俄羅斯", "Turkey": "土耳其", "North Macedonia": "北馬其頓",
-  "Albania": "阿爾巴尼亞", "Montenegro": "蒙特內哥羅",
-  
-  "Japan": "日本", "South Korea": "韓國", "Korea, South": "韓國", "China": "中國",
-  "Hong Kong": "香港", "Macao": "澳門", "Singapore": "新加坡", "Malaysia": "馬來西亞",
-  "Thailand": "泰國", "Vietnam": "越南", "Philippines": "菲律賓", "Indonesia": "印尼",
-  "India": "印度", "Cambodia": "柬埔寨", "Myanmar": "緬甸", "Laos": "寮國",
-  "United Arab Emirates": "阿拉伯聯合大公國", "Qatar": "卡達", "Saudi Arabia": "沙烏地阿拉伯",
-  "Israel": "以色列", "Jordan": "約旦",
-  
-  "United States": "美國", "Canada": "加拿大", "Mexico": "墨西哥", "Brazil": "巴西", 
-  "Argentina": "阿根廷", "Chile": "智利", "Peru": "秘魯", "Colombia": "哥倫比亞",
-  "Australia": "澳洲", "New Zealand": "紐西蘭",
-  "Egypt": "埃及", "South Africa": "南非", "Morocco": "摩洛哥", "Kenya": "肯亞", "Tanzania": "坦尚尼亞"
-};
-
-// 城市翻譯表
-const CITY_TRANSLATIONS = {
-  "Taipei": "台北", "Kaohsiung": "高雄", "Taichung": "台中", "Tainan": "台南", "Taoyuan": "桃園", "Hsinchu": "新竹", "Keelung": "基隆", "Chiayi": "嘉義", "Hualien": "花蓮", "Taitung": "台東",
-  "Istanbul": "伊斯坦堡", "İstanbul": "伊斯坦堡", "Ankara": "安卡拉", "Izmir": "伊茲密爾", "İzmir": "伊茲密爾", "Antalya": "安塔利亞", "Bursa": "布爾薩", "Goreme": "格雷梅 (卡帕多奇亞)", "Göreme": "格雷梅 (卡帕多奇亞)", "Nevsehir": "內夫謝希爾", "Nevşehir": "內夫謝希爾", "Kayseri": "凱塞利", "Pamukkale": "棉堡", "Denizli": "德尼茲利 (棉堡入口)", "Konya": "孔亞", "Bodrum": "博德魯姆", "Fethiye": "費特希耶", "Kas": "卡什", "Kaş": "卡什", "Selcuk": "塞爾丘克 (以弗所)", "Selçuk": "塞爾丘克 (以弗所)", "Ephesus": "以弗所", "Canakkale": "恰納卡萊", "Çanakkale": "恰納卡萊", "Trabzon": "特拉布宗", "Adana": "阿達納", "Gaziantep": "加濟安泰普", "Sanliurfa": "尚勒烏爾法", "Şanlıurfa": "尚勒烏爾法", "Mardin": "馬爾丁", "Alanya": "阿蘭亞", "Kusadasi": "庫薩達斯", "Kuşadası": "庫薩達斯",
-  "Tokyo": "東京", "Osaka": "大阪", "Kyoto": "京都", "Seoul": "首爾", "Busan": "釜山", "Sapporo": "札幌", "Fukuoka": "福岡", "Nagoya": "名古屋", "Okinawa": "沖繩", "Naha": "那霸", "Kobe": "神戶", "Nara": "奈良", "Hiroshima": "廣島", "Sendai": "仙台", "Kanazawa": "金澤", "Takayama": "高山", "Hakone": "箱根", "Nikko": "日光", "Kamakura": "鎌倉",
-  "Paris": "巴黎", "Lyon": "里昂", "Marseille": "馬賽", "Nice": "尼斯", "Bordeaux": "波爾多", "Strasbourg": "史特拉斯堡", "Toulouse": "土魯斯", "Avignon": "亞維儂", "Cannes": "坎城", "Chamonix": "夏慕尼", "Lille": "里爾", "Nantes": "南特", "Montpellier": "蒙皮立", "Aix-en-Provence": "普羅旺斯地區艾克斯", "Colmar": "科爾馬", "Annecy": "安錫", "Dijon": "第戎", "Versailles": "凡爾賽", "Arles": "亞爾", "Nimes": "尼姆", "Carcassonne": "卡爾卡松",
-  "Berlin": "柏林", "Munich": "慕尼黑", "Frankfurt": "法蘭克福", "Hamburg": "漢堡", "Cologne": "科隆", "Heidelberg": "海德堡", "Dresden": "德勒斯登", "Nuremberg": "紐倫堡", "Rothenburg ob der Tauber": "羅滕堡", "Stuttgart": "斯圖加特", "Dusseldorf": "杜塞道夫", "Leipzig": "萊比錫", "Bremen": "布萊梅", "Bonn": "波昂", "Freiburg": "弗萊堡", "Berchtesgaden": "貝希特斯加登 (國王湖)", "Fussen": "福森 (新天鵝堡)", "Füssen": "福森 (新天鵝堡)",
-  "London": "倫敦", "Edinburgh": "愛丁堡", "Manchester": "曼徹斯特", "Liverpool": "利物浦", "Oxford": "牛津", "Cambridge": "劍橋", "Bath": "巴斯", "York": "約克", "Glasgow": "格拉斯哥", "Birmingham": "伯明罕", "Bristol": "布里斯托", "Brighton": "布萊頓", "Cardiff": "卡地夫", "Belfast": "貝爾法斯特", "Inverness": "因弗尼斯",
-  "Rome": "羅馬", "Milan": "米蘭", "Venice": "威尼斯", "Florence": "佛羅倫斯", "Naples": "拿坡里", "Turin": "杜林", "Verona": "維洛納", "Pisa": "比薩", "Bologna": "波隆那", "Genoa": "熱那亞", "Palermo": "巴勒莫", "Siena": "錫耶納", "Cinque Terre": "五漁村", "Amalfi": "阿瑪菲", "Positano": "波西塔諾", "Sorrento": "蘇連多", "Capri": "卡布里島", "Como": "科莫", "Bergamo": "貝爾加莫",
-  "Madrid": "馬德里", "Barcelona": "巴塞隆納", "Seville": "塞維亞", "Valencia": "瓦倫西亞", "Granada": "格拉納達", "Bilbao": "畢爾包", "Malaga": "馬拉加", "Toledo": "托雷多", "Cordoba": "哥多華", "Segovia": "塞哥維亞", "San Sebastian": "聖塞巴斯蒂安", "Lisbon": "里斯本", "Porto": "波多", "Sintra": "辛特拉", "Faro": "法魯", "Coimbra": "科英布拉",
-  "Amsterdam": "阿姆斯特丹", "Rotterdam": "鹿特丹", "The Hague": "海牙", "Utrecht": "烏特勒支", "Eindhoven": "愛因霍芬", "Delft": "台夫特", "Maastricht": "馬斯垂克", "Giethoorn": "羊角村", "Brussels": "布魯塞爾", "Bruges": "布魯日", "Ghent": "根特", "Antwerp": "安特衛普", "Luxembourg": "盧森堡市",
-  "Zurich": "蘇黎世", "Geneva": "日內瓦", "Bern": "伯恩", "Lucerne": "琉森", "Interlaken": "因特拉肯", "Basel": "巴塞爾", "Lausanne": "洛桑", "Zermatt": "策馬特", "Grindelwald": "格林德瓦", "Vienna": "維也納", "Salzburg": "薩爾斯堡", "Hallstatt": "哈爾施塔特", "Innsbruck": "因斯布魯克", "Graz": "格拉茲", "Linz": "林茲",
-  "Prague": "布拉格", "Cesky Krumlov": "庫倫洛夫", "Brno": "布爾諾", "Budapest": "布達佩斯", "Debrecen": "德布勒森", "Warsaw": "華沙", "Krakow": "克拉科夫", "Gdansk": "格但斯克", "Wroclaw": "弗羅茨瓦夫", "Bratislava": "布拉提斯拉瓦", "Bucharest": "布加勒斯特", "Sofia": "索菲亞", "Dubrovnik": "杜布羅夫尼克", "Split": "斯普利特", "Zagreb": "札格瑞布", "Ljubljana": "盧布爾雅那", "Bled": "布萊德",
-  "Stockholm": "斯德哥爾摩", "Gothenburg": "哥德堡", "Malmo": "馬爾默", "Kiruna": "基律納", "Copenhagen": "哥本哈根", "Aarhus": "奧胡斯", "Odense": "歐登塞", "Oslo": "奧斯陸", "Bergen": "卑爾根", "Stavanger": "斯塔萬格", "Tromso": "特羅姆瑟", "Helsinki": "赫爾辛基", "Rovaniemi": "羅瓦涅米 (聖誕老人村)", "Reykjavik": "雷克雅維克",
-  "Athens": "雅典", "Santorini": "聖托里尼", "Mykonos": "米克諾斯", "Thessaloniki": "塞薩洛尼基", "Moscow": "莫斯科", "Saint Petersburg": "聖彼得堡", "Bangkok": "曼谷", "Ho Chi Minh City": "胡志明市", "Hanoi": "河內", "Singapore": "新加坡", "Chiang Mai": "清邁", "Phuket": "普吉島", "Bali": "峇里島", "Da Nang": "峴港",
-  "New York": "紐約", "Los Angeles": "洛杉磯", "San Francisco": "舊金山", "Chicago": "芝加哥", "Toronto": "多倫多", "Vancouver": "溫哥華", "Sydney": "雪梨", "Melbourne": "墨爾本", "Brisbane": "布里斯本", "Perth": "柏斯", "Auckland": "奧克蘭", "Christchurch": "基督城", "Queenstown": "皇后鎮", "Cairo": "開羅", "Marrakech": "馬拉喀什"
-};
-
-const getDisplayCityName = (englishName) => {
-  if (!englishName) return '';
-  const chinese = CITY_TRANSLATIONS[englishName];
-  if (chinese) {
-    return `${chinese} (${englishName})`;
-  }
-  return englishName;
-};
-
-const getDisplayCountryName = (englishName) => COUNTRY_TRANSLATIONS[englishName] || englishName;
-
-// Helper: Fetch Route from OSRM
+// OSRM 路徑抓取 (開車/公車/火車共用)
 const fetchRoutePath = async (lat1, lng1, lat2, lng2) => {
     try {
         const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
@@ -185,9 +218,9 @@ export default function TravelMapApp() {
   const [trips, setTrips] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // 狀態管理：匯出選項
+  // 狀態管理
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [exportMode, setExportMode] = useState('all'); // 'all' or 'range'
+  const [exportMode, setExportMode] = useState('all'); 
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
   const [exportDateRangeText, setExportDateRangeText] = useState('');
@@ -205,7 +238,7 @@ export default function TravelMapApp() {
   const [isLoadingOriginCities, setIsLoadingOriginCities] = useState(false);
   const [isLoadingDestCities, setIsLoadingDestCities] = useState(false);
   
-  // 地圖載入狀態，這裡為了相容性我們手動檢查全域變數
+  // 地圖載入狀態
   const [libLoaded, setLibLoaded] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -221,9 +254,9 @@ export default function TravelMapApp() {
   const captureRef = useRef(null); 
   const mapInstanceRef = useRef(null);
   const geoJsonLayerRef = useRef(null);
-  const pickingLocationMode = useRef(null); 
   const layersRef = useRef([]); 
   const pickerMarkerRef = useRef(null);
+  const pickingLocationMode = useRef(null);
   const [isPickingMode, setIsPickingMode] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
   
@@ -240,7 +273,7 @@ export default function TravelMapApp() {
     latestDataRef.current = { trips, allCountries };
   }, [trips, allCountries]);
 
-  // ★★★ CDN 載入機制：同時支援預覽與本機 ★★★
+  // ★★★ CDN 動態載入：確保預覽與本機皆可執行 ★★★
   useEffect(() => {
     const loadScript = (src, id) => {
         if (document.getElementById(id)) return;
@@ -259,18 +292,16 @@ export default function TravelMapApp() {
         document.head.appendChild(link);
     };
 
-    // 載入 Leaflet 和 html2canvas
     loadStyle('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'leaflet-css');
     loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'leaflet-js');
     loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas-js');
 
-    // 輪詢檢查套件是否載入完成 (window.L 和 window.html2canvas)
     const checkLibs = setInterval(() => {
         if (window.L && window.html2canvas) {
             setLibLoaded(true);
             clearInterval(checkLibs);
             
-            // 修正圖標路徑
+            // 修正圖標
             delete window.L.Icon.Default.prototype._getIconUrl;
             window.L.Icon.Default.mergeOptions({
                 iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -347,9 +378,10 @@ export default function TravelMapApp() {
           }));
           
           countries.sort((a, b) => {
-             if (a.name === "Taiwan") return -1;
-             if (b.name === "Taiwan") return 1;
-             return a.name.localeCompare(b.name);
+             // 台灣優先，其他按名稱排序
+             if (a.name.includes("Taiwan") || a.label.includes("台灣")) return -1;
+             if (b.name.includes("Taiwan") || b.label.includes("台灣")) return 1;
+             return a.label.localeCompare(b.label);
           });
           
           setAllCountries(countries);
@@ -400,7 +432,6 @@ export default function TravelMapApp() {
         setCities([]);
       }
     } catch (error) {
-      console.error(`Failed to fetch cities for ${country}`, error);
       setCities([]);
     } finally {
       setLoading(false);
@@ -409,19 +440,13 @@ export default function TravelMapApp() {
 
   // Map Init
   useEffect(() => {
-    // 只要有 mapContainerRef 就可以初始化
-    if (!mapContainerRef.current) return;
+    if (!libLoaded || mapInstanceRef.current || !mapContainerRef.current) return;
     
-    // Check if map already exists
-    if (mapInstanceRef.current) {
-        mapInstanceRef.current.invalidateSize();
-        return;
-    }
-
+    const L = window.L;
     const map = L.map(mapContainerRef.current, { preferCanvas: true }).setView([48, 15], 4); 
     
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
       subdomains: 'abcd',
       maxZoom: 19,
       crossOrigin: true 
@@ -473,26 +498,10 @@ export default function TravelMapApp() {
                     [pickingLocationMode.current === 'origin' ? 'originCity' : 'destCity']: ''
                   }));
                 } else {
-                  const { trips } = latestDataRef.current;
-                  let initOriginCountry = '';
-                  let initOriginCity = '';
-                  let initOriginLat = null;
-                  let initOriginLng = null;
-                  let initDestCountry = '';
-
-                  if (trips.length > 0) {
-                      const sortedTrips = [...trips].sort((a, b) => new Date(b.dateEnd) - new Date(a.dateEnd));
-                      const lastTrip = sortedTrips[0];
-                      initOriginCountry = lastTrip.destCountry || lastTrip.targetCountry;
-                      initOriginCity = lastTrip.destCity;
-                      initOriginLat = lastTrip.destLat;
-                      initOriginLng = lastTrip.destLng;
-                  } 
-
+                  // 重置為空白，由使用者自由選擇
                   setFormData({
-                    originCountry: initOriginCountry, originCity: initOriginCity, 
-                    originLat: initOriginLat, originLng: initOriginLng,
-                    destCountry: initDestCountry, destCity: '', destLat: null, destLng: null,
+                    originCountry: '', originCity: '', originLat: null, originLng: null,
+                    destCountry: '', destCity: '', destLat: null, destLng: null,
                     dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
                     transport: 'plane', cost: '', currency: 'EUR',
                     transportNumber: '', seatNumber: '', seatType: 'window', notes: '',
@@ -500,7 +509,8 @@ export default function TravelMapApp() {
                   });
                   setEditingId(null);
                   
-                  if (initOriginCountry) fetchCitiesForCountry(initOriginCountry, 'origin');
+                  // 嘗試預載點擊國家的城市，但不自動填入
+                  fetchCitiesForCountry(countryName, 'origin');
                   setDestCities([]); 
                   
                   setIsModalOpen(true);
@@ -510,28 +520,8 @@ export default function TravelMapApp() {
           }
         }).addTo(map);
       });
-  }, []);
+  }, [libLoaded]);
 
-  // Picking mode listener
-  useEffect(() => {
-    if(!mapInstanceRef.current) return;
-    const map = mapInstanceRef.current;
-    const handleMapClick = () => {
-      setTimeout(() => {
-         if (isPickingMode) {
-             setIsPickingMode(false);
-             setIsModalOpen(true); 
-             const cursorStyle = document.getElementById('map-cursor-style');
-             if (cursorStyle) cursorStyle.innerHTML = '';
-         }
-         pickingLocationMode.current = null;
-      }, 200);
-    };
-    map.on('click', handleMapClick);
-    return () => map.off('click', handleMapClick);
-  }, [isPickingMode]);
-
-  // Render Map Layers
   const renderMapLayers = (tripsToRender) => {
     if (!mapInstanceRef.current || !window.L) return;
     const map = mapInstanceRef.current;
@@ -547,6 +537,7 @@ export default function TravelMapApp() {
 
     if (geoJsonLayerRef.current) {
         const today = new Date().toISOString().split('T')[0];
+        // 只要行程是過去或進行中，相關國家都亮起
         const activeTrips = tripsToRender.filter(t => t.dateStart && t.dateStart <= today);
         const visitedCountries = new Set(activeTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
         
@@ -562,7 +553,6 @@ export default function TravelMapApp() {
 
     tripsToRender.forEach(trip => {
       if (trip.originLat && trip.originLng && trip.destLat && trip.destLng) {
-        const latlngs = [[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]];
         const typeConfig = TRANSPORT_TYPES[trip.transport] || TRANSPORT_TYPES.plane;
         
         const today = new Date().toISOString().split('T')[0];
@@ -570,6 +560,7 @@ export default function TravelMapApp() {
         
         let polyline;
         
+        // ★★★ 修正：確保在有路徑資料時繪製彎曲路徑 ★★★
         if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
             polyline = L.polyline(trip.routePath, {
                 color: typeConfig.color, 
@@ -616,26 +607,16 @@ export default function TravelMapApp() {
     e.preventDefault();
     if (!user) return;
     
-    // Auto-fetch route before saving
+    // ★★★ 關鍵修正：確保路徑抓取邏輯正確 ★★★
     let finalRoutePath = null;
     const transportType = TRANSPORT_TYPES[formData.transport];
     
-    // Check if coordinates exist before fetching route
-    if (transportType && transportType.useRoute && 
-        formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
-        // Fetch coordinates
-        try {
-            const url = `https://router.project-osrm.org/route/v1/driving/${formData.originLng},${formData.originLat};${formData.destLng},${formData.destLat}?overview=full&geometries=geojson`;
-            const res = await fetch(url);
-            const data = await res.json();
-            if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-                // OSRM returns [lng, lat], Leaflet needs [lat, lng]
-                finalRoutePath = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
-            }
-        } catch(e) { console.error("Route error", e); }
+    if (transportType && transportType.useRoute && formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
+        // Fetch route
+        finalRoutePath = await fetchRoutePath(formData.originLat, formData.originLng, formData.destLat, formData.destLng);
     }
     
-    // ★★★ 修正：將路徑轉為字串存入 Firebase ★★★
+    // 將路徑轉為字串存入 Firebase (避免 Nested Array Error)
     const finalData = {
         ...formData,
         routePath: finalRoutePath ? JSON.stringify(finalRoutePath) : null
@@ -801,12 +782,11 @@ export default function TravelMapApp() {
     
     const label = isOrigin ? '出發城市/地點' : '抵達城市/地點';
     const placeholder = isOrigin ? '例如: 台北' : '例如: 東京';
-    const showSelect = cities.length > 0;
-
+    
     return (
       <div className="space-y-2">
         <label className="block text-sm font-semibold text-gray-700 flex justify-between">
-            {isOrigin ? '出發城市/地點' : '抵達城市/地點'}
+            {label}
             {isLoading && <span className="text-xs text-blue-500 font-normal flex items-center gap-1"><RefreshCw size={10} className="animate-spin"/> 載入城市中...</span>}
         </label>
         
@@ -876,7 +856,6 @@ export default function TravelMapApp() {
           <div className="text-xs opacity-70 hidden sm:block">
             {loading ? '載入中...' : `已記錄 ${trips.length} 趟旅程`}
           </div>
-          {/* 匯出按鈕：開啟選項視窗 */}
           <button 
             onClick={() => setIsExportModalOpen(true)}
             disabled={!libLoaded || isExporting}
@@ -946,38 +925,6 @@ export default function TravelMapApp() {
                   {trip.targetCountry && (
                     <div className="text-xs text-blue-600 mb-2 bg-blue-50 inline-block px-1.5 py-0.5 rounded">
                       {getDisplayCountryName(trip.targetCountry)}
-                    </div>
-                  )}
-
-                  {(trip.transportNumber || trip.seatNumber || trip.notes || trip.cost) && (
-                    <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded space-y-1">
-                      {trip.cost && (
-                        <div className="flex items-center gap-1 font-semibold text-gray-600">
-                          <Coins size={10} /> 
-                          <span>
-                            費用: {(trip.currency && !isNaN(parseFloat(trip.cost))) ? `${trip.currency} ${trip.cost}` : trip.cost}
-                          </span>
-                        </div>
-                      )}
-                      {trip.transportNumber && (
-                        <div className="flex items-center gap-1">
-                          <Ticket size={10} /> <span>班次: {trip.transportNumber}</span>
-                        </div>
-                      )}
-                      {(trip.seatNumber || (trip.seatType && trip.seatType !== 'none')) && (
-                         <div className="flex items-center gap-1">
-                          <Armchair size={10} /> 
-                          <span>
-                            座位: {trip.seatNumber || '--'} 
-                            {trip.seatType && trip.seatType !== 'none' && ` (${SEAT_TYPES[trip.seatType]})`}
-                          </span>
-                        </div>
-                      )}
-                      {trip.notes && (
-                        <div className="flex items-start gap-1">
-                          <FileText size={10} className="mt-0.5" /> <span className="line-clamp-2">{trip.notes}</span>
-                        </div>
-                      )}
                     </div>
                   )}
 
@@ -1059,6 +1006,7 @@ export default function TravelMapApp() {
       {isModalOpen && (
         <div className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-0 md:p-4">
           <div className="bg-white md:rounded-xl shadow-2xl w-full max-w-2xl h-full md:h-auto md:max-h-[90vh] overflow-y-auto flex flex-col animate-in fade-in zoom-in duration-200">
+            
             <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 {editingId ? '編輯旅程細節' : '新增旅程細節'}
@@ -1067,11 +1015,14 @@ export default function TravelMapApp() {
                 <X size={28} />
               </button>
             </div>
+
             <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-6">
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
                 {renderCityInput('origin')}
                 {renderCityInput('dest')}
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1">出發時間</label>
@@ -1104,6 +1055,7 @@ export default function TravelMapApp() {
                   )}
                 </div>
               </div>
+
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-3">交通工具類型</label>
                 <div className="grid grid-cols-4 gap-3">
@@ -1126,6 +1078,7 @@ export default function TravelMapApp() {
               </div>
 
               <div className="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">交通票價 / 費用</label>
@@ -1163,6 +1116,7 @@ export default function TravelMapApp() {
                     </div>
                   </div>
                 </div>
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">座位詳情</label>
                   <div className="flex gap-2">
@@ -1185,6 +1139,7 @@ export default function TravelMapApp() {
                     </select>
                   </div>
                 </div>
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">備註</label>
                   <textarea 
@@ -1195,6 +1150,7 @@ export default function TravelMapApp() {
                   />
                 </div>
               </div>
+
               <div className="pt-4 flex justify-end gap-3 border-t mt-4 pb-8 md:pb-0">
                 <button 
                   type="button" onClick={() => setIsModalOpen(false)}
@@ -1209,7 +1165,73 @@ export default function TravelMapApp() {
                   {editingId ? '更新旅程' : '儲存旅程'}
                 </button>
               </div>
+
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 匯出選項 Modal */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-[2200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 animate-in fade-in zoom-in duration-200">
+            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <Download size={20} className="text-blue-600"/> 匯出地圖設定
+            </h3>
+            
+            <div className="space-y-4 mb-6">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" name="exportMode" value="all" 
+                    checked={exportMode === 'all'}
+                    onChange={() => setExportMode('all')}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-gray-700">匯出全部旅程</span>
+                </label>
+                
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" name="exportMode" value="range" 
+                    checked={exportMode === 'range'}
+                    onChange={() => setExportMode('range')}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-gray-700">指定日期區間</span>
+                </label>
+              </div>
+
+              {exportMode === 'range' && (
+                <div className="bg-gray-50 p-3 rounded border space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">開始日期</label>
+                    <input type="date" className="w-full p-2 border rounded text-sm" 
+                      value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">結束日期</label>
+                    <input type="date" className="w-full p-2 border rounded text-sm" 
+                      value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setIsExportModalOpen(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              >
+                取消
+              </button>
+              <button 
+                onClick={performExport}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded shadow transition-colors"
+              >
+                開始匯出
+              </button>
+            </div>
           </div>
         </div>
       )}
