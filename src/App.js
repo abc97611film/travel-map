@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Navigation } from 'lucide-react';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Share2, LogOut } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 和 html2canvas，以相容預覽環境與本機環境
 
@@ -18,6 +18,7 @@ const firebaseConfig = {
   appId: "1:143054225690:web:ff2d9355401cce41c02ca3"
 };
 
+// 避免重複初始化
 let app;
 let auth;
 let db;
@@ -29,14 +30,17 @@ try {
     console.error("Firebase init error", e);
 }
 const appId = 'travel-map-v1'; 
-// ★★★ 新增：共用 ID，讓所有裝置讀寫同一個資料夾，實現同步！ ★★★
-const SHARED_ID = 'my_shared_trip_data_2025'; 
+
+// ★★★ 核心修改：動態取得 Map ID ★★★
+// 從網址參數 (?map=xxx) 取得 ID，如果沒有則使用 'default'
+const getMapIdFromUrl = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('map') || 'default';
+};
 
 // -----------------------------------------------------------------------------
-// 2. 靜態資料庫：解決 API 空白與翻譯問題的關鍵
+// 2. 翻譯資料庫 (繁體中文 - 台灣慣用語)
 // -----------------------------------------------------------------------------
-
-// 國家名稱翻譯
 const COUNTRY_TRANSLATIONS = {
   "Taiwan": "台灣", "Japan": "日本", "South Korea": "韓國", "China": "中國",
   "Hong Kong": "香港", "Macao": "澳門", "North Macedonia": "北馬其頓",
@@ -78,7 +82,6 @@ const COUNTRY_TRANSLATIONS = {
   "United Arab Emirates": "阿拉伯聯合大公國", "Yemen": "葉門", "Western Sahara": "西撒哈拉"
 };
 
-// 城市名稱翻譯 (繁體中文)
 const CITY_TRANSLATIONS = {
   // 北馬其頓 (North Macedonia)
   "Skopje": "史科普耶", "Ohrid": "奧赫里德", "Bitola": "比托拉", "Kumanovo": "庫馬諾沃", 
@@ -111,8 +114,7 @@ const CITY_TRANSLATIONS = {
   "New York": "紐約", "Los Angeles": "洛杉磯", "Sydney": "雪梨", "Melbourne": "墨爾本"
 };
 
-// ★★★ 預設城市清單 (解決 API 缺漏問題) ★★★
-// 當選擇這些國家時，直接使用這裡的清單，不請求 API
+// 預設城市清單
 const PREDEFINED_CITIES = {
   "North Macedonia": ["Skopje", "Ohrid", "Bitola", "Kumanovo", "Prilep", "Tetovo", "Veles", "Stip", "Gostivar", "Strumica"],
   "Kosovo": ["Pristina", "Prizren", "Peja", "Gjakova", "Mitrovica"],
@@ -249,7 +251,6 @@ export default function TravelMapApp() {
   const [isLoadingOriginCities, setIsLoadingOriginCities] = useState(false);
   const [isLoadingDestCities, setIsLoadingDestCities] = useState(false);
   
-  // 手動輸入模式
   const [isOriginManual, setIsOriginManual] = useState(false);
   const [isDestManual, setIsDestManual] = useState(false);
   
@@ -274,6 +275,9 @@ export default function TravelMapApp() {
   const pickerMarkerRef = useRef(null);
   const pickingLocationMode = useRef(null);
   const latestDataRef = useRef({ trips: [], allCountries: [] });
+
+  // 取得當前 Map ID
+  const currentMapId = getMapIdFromUrl();
 
   const safeDateDisplay = (date) => {
     if (!date) return '';
@@ -338,10 +342,10 @@ export default function TravelMapApp() {
     return () => unsubscribe();
   }, []);
 
+  // 監聽資料庫 (使用動態 Map ID)
   useEffect(() => {
     if (!user) return;
-    // ★★★ 修正：使用 SHARED_ID 讀取共用資料 ★★★
-    const q = query(collection(db, 'artifacts', appId, 'users', SHARED_ID, 'travel_trips'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
         const loadedTrips = snapshot.docs.map(doc => {
@@ -358,7 +362,7 @@ export default function TravelMapApp() {
         setLoading(false);
       },
       (error) => {
-        const fallbackQ = collection(db, 'artifacts', appId, 'users', SHARED_ID, 'travel_trips');
+        const fallbackQ = collection(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips');
         onSnapshot(fallbackQ, (snap) => {
             const loaded = snap.docs.map(doc => {
                 const data = doc.data();
@@ -377,22 +381,18 @@ export default function TravelMapApp() {
       }
     );
     return () => unsubscribe();
-  }, [user]);
+  }, [user, currentMapId]); // 當 currentMapId 改變時，會重新監聽對應的資料
 
-  // ★★★ 修正：使用靜態翻譯資料庫生成國家列表，確保百分之百有中文 ★★★
   useEffect(() => {
     const countries = Object.entries(COUNTRY_TRANSLATIONS).map(([key, value]) => ({
-        name: key, // 英文名作為 ID
-        label: `${value} (${key})` // 顯示名：中文 (英文)
+        name: key,
+        label: `${value} (${key})`
     }));
-    
-    // 排序：台灣優先，其餘按英文名 A-Z
     countries.sort((a, b) => {
         if (a.name === "Taiwan") return -1;
         if (b.name === "Taiwan") return 1;
         return a.name.localeCompare(b.name);
     });
-    
     setAllCountries(countries);
   }, []);
 
@@ -419,7 +419,6 @@ export default function TravelMapApp() {
     setLoading(true);
     setManual(false); 
 
-    // 1. 先檢查是否有預定義的城市清單 (包含北馬其頓)
     if (PREDEFINED_CITIES[country]) {
         const processedCities = PREDEFINED_CITIES[country].map(city => ({
             value: getDisplayCityName(city),
@@ -429,10 +428,9 @@ export default function TravelMapApp() {
         processedCities.sort((a, b) => a.label.localeCompare(b.label));
         setCities(processedCities);
         setLoading(false);
-        return; // 直接返回，不用去 Call API
+        return; 
     }
 
-    // 2. 如果沒有預定義，才嘗試 API
     try {
       const response = await fetch('https://countriesnow.space/api/v0.1/countries/cities', {
         method: 'POST',
@@ -658,7 +656,7 @@ export default function TravelMapApp() {
     let finalRoutePath = null;
     const transportType = TRANSPORT_TYPES[formData.transport];
     
-    // ★★★ 確保路徑抓取邏輯 (開車/火車/公車都抓) ★★★
+    // 確保路徑抓取邏輯
     if (transportType && transportType.useRoute && formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
         try {
             const url = `https://router.project-osrm.org/route/v1/driving/${formData.originLng},${formData.originLat};${formData.destLng},${formData.destLat}?overview=full&geometries=geojson`;
@@ -672,12 +670,12 @@ export default function TravelMapApp() {
     
     const finalData = { ...formData, routePath: finalRoutePath ? JSON.stringify(finalRoutePath) : null };
 
-    // ★★★ 修正：使用 SHARED_ID 存入資料 ★★★
+    // 使用 SHARED_ID (動態取得) 存入資料
     try {
       if (editingId) {
-        await updateDoc(doc(db, 'artifacts', appId, 'users', SHARED_ID, 'travel_trips', editingId), { ...finalData, updatedAt: serverTimestamp() });
+        await updateDoc(doc(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips', editingId), { ...finalData, updatedAt: serverTimestamp() });
       } else {
-        await addDoc(collection(db, 'artifacts', appId, 'users', SHARED_ID, 'travel_trips'), { ...finalData, createdAt: serverTimestamp() });
+        await addDoc(collection(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips'), { ...finalData, createdAt: serverTimestamp() });
       }
       setIsModalOpen(false);
       if (mapInstanceRef.current && pickerMarkerRef.current) {
@@ -691,8 +689,7 @@ export default function TravelMapApp() {
   const requestDelete = (e, id) => { e.stopPropagation(); setDeleteConfirmId(id); };
   const confirmDelete = async () => {
     if (!user || !deleteConfirmId) return;
-    // ★★★ 修正：使用 SHARED_ID 刪除資料 ★★★
-    try { await deleteDoc(doc(db, 'artifacts', appId, 'users', SHARED_ID, 'travel_trips', deleteConfirmId)); setDeleteConfirmId(null); } 
+    try { await deleteDoc(doc(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips', deleteConfirmId)); setDeleteConfirmId(null); } 
     catch (err) { console.error("Error deleting trip:", err); }
   };
 
@@ -774,6 +771,24 @@ export default function TravelMapApp() {
             setExportDateRangeText('');
         }
     }, 500);
+  };
+
+  // Helper function to handle sharing
+  const handleShare = () => {
+      const url = window.location.href;
+      navigator.clipboard.writeText(url).then(() => {
+          alert(`網址已複製！傳送給朋友即可分享此地圖：\n${url}`);
+      });
+  };
+
+  // Helper function to switch map
+  const handleSwitchMap = () => {
+      const newMapId = prompt("請輸入新地圖的名稱 (ID)：\n(例如：amy-trip, japan-2025)", "");
+      if (newMapId) {
+          const url = new URL(window.location.href);
+          url.searchParams.set('map', newMapId);
+          window.location.href = url.toString();
+      }
   };
 
   const renderCityInput = (type) => {
@@ -881,20 +896,36 @@ export default function TravelMapApp() {
       <header className="bg-blue-900 text-white p-4 shadow-md flex items-center justify-between z-20">
         <div className="flex items-center gap-2">
           <Globe className="w-6 h-6" />
-          <h1 className="text-xl font-bold tracking-wide">歐洲交換趴趴走</h1>
+          <div>
+              <h1 className="text-xl font-bold tracking-wide">歐洲交換趴趴走</h1>
+              <div className="text-xs opacity-70 flex items-center gap-1">
+                  ID: <span className="font-mono bg-blue-800 px-1 rounded">{currentMapId}</span>
+                  <button onClick={handleShare} className="hover:text-yellow-300 ml-1" title="複製連結"><Share2 size={12}/></button>
+              </div>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="text-xs opacity-70 hidden sm:block">
             {loading ? '載入中...' : `已記錄 ${trips.length} 趟旅程`}
           </div>
+          
+          <button 
+            onClick={handleSwitchMap}
+            className="flex items-center gap-1 bg-blue-800 hover:bg-blue-700 px-3 py-1.5 rounded text-sm transition-colors border border-blue-700"
+            title="建立/切換地圖"
+          >
+            <LogOut size={16} />
+            <span className="hidden sm:inline">切換地圖</span>
+          </button>
+
           <button 
             onClick={() => setIsExportModalOpen(true)}
             disabled={!libLoaded || isExporting}
-            className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-blue-600"
             title="匯出地圖圖片"
           >
             {isExporting ? <Loader className="animate-spin" size={16}/> : <Download size={16} />}
-            <span className="hidden sm:inline">{isExporting ? '匯出中...' : '匯出地圖'}</span>
+            <span className="hidden sm:inline">{isExporting ? '匯出中...' : '匯出'}</span>
           </button>
 
           {!isSidebarOpen && (
