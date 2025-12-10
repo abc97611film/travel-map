@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Share2, LogOut } from 'lucide-react';
+import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDocs, limit } from 'firebase/firestore';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Share2, LogOut, Map, LogIn, PlusCircle } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 和 html2canvas，以相容預覽環境與本機環境
 
@@ -270,6 +270,9 @@ export default function TravelMapApp() {
   const [currentMapId, setCurrentMapId] = useState('');
   const [isIdModalOpen, setIsIdModalOpen] = useState(true); // 預設開啟 ID 輸入框
   const [tempMapIdInput, setTempMapIdInput] = useState(''); // 輸入框的暫存值
+  const [idMode, setIdMode] = useState('enter'); // 'enter' | 'create'
+  const [idError, setIdError] = useState('');
+  const [isCheckingId, setIsCheckingId] = useState(false);
   
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
@@ -312,17 +315,37 @@ export default function TravelMapApp() {
       }
   }, []);
 
-  // 處理 ID 提交
-  const handleIdSubmit = (e) => {
+  // ★★★ 處理 ID 提交 (包含防撞名檢查) ★★★
+  const handleIdSubmit = async (e) => {
       e.preventDefault();
+      setIdError('');
       if (!tempMapIdInput.trim()) return;
-      const cleanId = tempMapIdInput.trim().replace(/[^a-zA-Z0-9-_]/g, ''); // 簡單過濾
-      if (!cleanId) { alert("請輸入有效的 ID (英文、數字、底線或連字號)"); return; }
+      const cleanId = tempMapIdInput.trim().replace(/[^a-zA-Z0-9-_]/g, ''); 
+      if (!cleanId) { setIdError("請輸入有效的 ID (英文、數字、底線或連字號)"); return; }
+      
+      // 如果是「建立新地圖」，需要檢查 ID 是否已被使用
+      if (idMode === 'create') {
+          setIsCheckingId(true);
+          try {
+              // 檢查該 ID 下是否有任何行程資料
+              const q = query(collection(db, 'artifacts', appId, 'users', cleanId, 'travel_trips'), orderBy('createdAt', 'desc'), limit(1));
+              const snapshot = await getDocs(q);
+              
+              if (!snapshot.empty) {
+                  setIdError("此 ID 已被使用，請更換一個，或切換到「進入我的地圖」");
+                  setIsCheckingId(false);
+                  return;
+              }
+          } catch (err) {
+              console.error("Error checking ID:", err);
+              // 如果權限錯誤(可能第一次)，視為可用
+          }
+          setIsCheckingId(false);
+      }
       
       setCurrentMapId(cleanId);
       setIsIdModalOpen(false);
       
-      // 更新網址但不刷新頁面
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.set('map', cleanId);
       window.history.pushState({}, '', newUrl);
@@ -593,6 +616,7 @@ export default function TravelMapApp() {
 
     if (geoJsonLayerRef.current) {
         const today = new Date().toISOString().split('T')[0];
+        // 只要行程是過去或進行中，相關國家都亮起
         const activeTrips = tripsToRender.filter(t => t.dateStart && t.dateStart <= today);
         const visitedCountries = new Set(activeTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
         
@@ -614,6 +638,7 @@ export default function TravelMapApp() {
         const isFutureOrNoDate = !trip.dateStart || trip.dateStart > today;
         let polyline;
         
+        // ★★★ 確保使用抓取到的路徑資料 ★★★
         if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
             polyline = L.polyline(trip.routePath, { color: typeConfig.color, weight: 3, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null }).addTo(map);
         } else {
@@ -716,6 +741,7 @@ export default function TravelMapApp() {
     let finalRoutePath = null;
     const transportType = TRANSPORT_TYPES[formData.transport];
     
+    // ★★★ 確保路徑抓取邏輯 (開車/火車/公車都抓) ★★★
     if (transportType && transportType.useRoute && formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
         try {
             const url = `https://router.project-osrm.org/route/v1/driving/${formData.originLng},${formData.originLat};${formData.destLng},${formData.destLat}?overview=full&geometries=geojson`;
@@ -938,7 +964,7 @@ export default function TravelMapApp() {
         <div className="flex items-center gap-2">
           <Globe className="w-6 h-6" />
           <div>
-              <h1 className="text-xl font-bold tracking-wide">歐洲交換趴趴走</h1>
+              <h1 className="text-xl font-bold tracking-wide">🗺️歐洲交換趴趴走</h1>
               {currentMapId && (
                   <div className="text-xs opacity-70 flex items-center gap-1">
                       ID: <span className="font-mono bg-blue-800 px-1 rounded">{currentMapId}</span>
@@ -1108,42 +1134,76 @@ export default function TravelMapApp() {
         </div>
       </div>
       
-      {/* ID 輸入 Modal */}
+      {/* ID 輸入 Modal - 分頁設計 */}
       {isIdModalOpen && (
           <div className="fixed inset-0 z-[3000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 animate-in fade-in zoom-in duration-300">
-              <div className="text-center mb-6">
-                <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
-                  <Globe size={32} />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-800">歡迎使用旅行地圖</h2>
-                <p className="text-gray-500 mt-2 text-sm">請輸入一個專屬的 ID 來建立或讀取您的地圖</p>
-              </div>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
               
-              <form onSubmit={handleIdSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">地圖 ID (英文或數字)</label>
-                  <input 
-                    type="text" 
-                    required
-                    placeholder="例如: my-trip-2025"
-                    className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-0 text-lg outline-none transition-colors"
-                    value={tempMapIdInput}
-                    onChange={(e) => setTempMapIdInput(e.target.value)}
-                  />
-                </div>
+              {/* Tabs */}
+              <div className="flex border-b">
                 <button 
-                  type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
+                  onClick={() => setIdMode('enter')}
+                  className={`flex-1 py-4 font-bold text-center transition-colors ${idMode === 'enter' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
                 >
-                  開始旅程 🚀
+                  <div className="flex items-center justify-center gap-2">
+                    <LogIn size={18} /> 進入我的地圖
+                  </div>
                 </button>
-              </form>
-              
-              <div className="mt-6 text-center">
-                <p className="text-xs text-gray-400">
-                  💡 提示：在不同裝置輸入同一個 ID，即可同步編輯地圖。
-                </p>
+                <button 
+                  onClick={() => setIdMode('create')}
+                  className={`flex-1 py-4 font-bold text-center transition-colors ${idMode === 'create' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <PlusCircle size={18} /> 建立新地圖
+                  </div>
+                </button>
+              </div>
+
+              <div className="p-8">
+                <div className="text-center mb-6">
+                  <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+                    <Globe size={32} />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    {idMode === 'enter' ? '歡迎回來！' : '開始新的旅程'}
+                  </h2>
+                  <p className="text-gray-500 mt-2 text-sm">
+                    {idMode === 'enter' 
+                      ? '請輸入您的地圖 ID 以繼續編輯' 
+                      : '請設定一個專屬 ID 來建立新地圖'}
+                  </p>
+                </div>
+                
+                <form onSubmit={handleIdSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">地圖 ID (英文或數字)</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="例如: my-trip-2025"
+                      className={`w-full p-4 border-2 rounded-xl text-lg outline-none transition-colors ${idError ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-blue-500'}`}
+                      value={tempMapIdInput}
+                      onChange={(e) => {
+                          setTempMapIdInput(e.target.value);
+                          setIdError(''); // Clear error on typing
+                      }}
+                    />
+                    {idError && <p className="text-red-500 text-xs mt-1 font-bold">{idError}</p>}
+                  </div>
+                  <button 
+                    type="submit"
+                    disabled={isCheckingId}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isCheckingId ? <Loader className="animate-spin" /> : (idMode === 'enter' ? '進入地圖 ➔' : '建立地圖 🚀')}
+                  </button>
+                </form>
+                
+                <div className="mt-6 text-center bg-blue-50 p-3 rounded-lg">
+                  <p className="text-xs text-blue-600 font-medium">
+                    💡 ID 是您存取地圖的唯一鑰匙，請妥善保管！
+                  </p>
+                </div>
               </div>
             </div>
           </div>
