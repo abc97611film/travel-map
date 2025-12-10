@@ -4,22 +4,8 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2 } from 'lucide-react';
 
-// 直接引用安裝好的套件
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import html2canvas from 'html2canvas';
-
-// 修正 Leaflet 預設圖標遺失的問題
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-
-let DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
+// 注意：移除了 import L 和 import html2canvas，改用 CDN 動態載入
+// 這樣可以確保在任何環境（包含預覽視窗）都能執行，不會報錯
 
 // -----------------------------------------------------------------------------
 // 1. Firebase 初始化 (您的專屬金鑰)
@@ -34,14 +20,16 @@ const firebaseConfig = {
 };
 
 // 避免重複初始化
+let app;
+let auth;
+let db;
 try {
-  initializeApp(firebaseConfig);
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
 } catch (e) {
-  // ignore
+    console.error("Firebase init error", e);
 }
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
 const appId = 'travel-map-v1'; 
 
 // -----------------------------------------------------------------------------
@@ -49,9 +37,9 @@ const appId = 'travel-map-v1';
 // -----------------------------------------------------------------------------
 const TRANSPORT_TYPES = {
   plane: { label: '飛機', color: '#2563eb', icon: Plane, useRoute: false },
-  train: { label: '火車', color: '#dc2626', icon: Train, useRoute: true }, // 開啟路徑抓取
-  bus:   { label: '公車/巴士', color: '#15803d', icon: Bus, useRoute: true }, // 開啟路徑抓取
-  car:   { label: '開車', color: '#84cc16', icon: Car, useRoute: true },   // 開啟路徑抓取
+  train: { label: '火車', color: '#dc2626', icon: Train, useRoute: true },
+  bus:   { label: '公車/巴士', color: '#15803d', icon: Bus, useRoute: true },
+  car:   { label: '開車', color: '#84cc16', icon: Car, useRoute: true },
   boat:  { label: '船運', color: '#000000', icon: Ship, useRoute: false },
 };
 
@@ -94,7 +82,9 @@ const CURRENCIES = [
 const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
+// --- 翻譯資料庫 ---
 const COUNTRY_TRANSLATIONS = {
+  "Taiwan": "台灣", // 確保台灣在清單中
   "France": "法國", "Germany": "德國", "United Kingdom": "英國", "Italy": "義大利", 
   "Spain": "西班牙", "Netherlands": "荷蘭", "Belgium": "比利時", "Switzerland": "瑞士",
   "Austria": "奧地利", "Czech Republic": "捷克", "Poland": "波蘭", "Hungary": "匈牙利",
@@ -137,27 +127,24 @@ const CITY_TRANSLATIONS = {
   "New York": "紐約", "Los Angeles": "洛杉磯", "San Francisco": "舊金山", "Chicago": "芝加哥", "Toronto": "多倫多", "Vancouver": "溫哥華", "Sydney": "雪梨", "Melbourne": "墨爾本", "Brisbane": "布里斯本", "Perth": "柏斯", "Auckland": "奧克蘭", "Christchurch": "基督城", "Queenstown": "皇后鎮", "Cairo": "開羅", "Marrakech": "馬拉喀什"
 };
 
+// 格式化顯示名稱：中文 (英文)
 const getDisplayCityName = (englishName) => {
   if (!englishName) return '';
   const chinese = CITY_TRANSLATIONS[englishName];
   if (chinese) {
-    const famousCities = [
-      "巴黎", "倫敦", "柏林", "羅馬", "東京", "台北", "紐約", "首爾", "曼谷", 
-      "維也納", "布拉格", "阿姆斯特丹", "巴塞隆納", "馬德里", "米蘭", "威尼斯", "佛羅倫斯", 
-      "慕尼黑", "法蘭克福", "布達佩斯", "華沙", "蘇黎世", "日內瓦", "布魯塞爾", 
-      "哥本哈根", "斯德哥爾摩", "奧斯陸", "赫爾辛基", "雅典", "里斯本", "愛丁堡", 
-      "曼徹斯特", "都柏林", "莫斯科", "基輔", "伊斯坦堡", "杜拜", "新加坡", "香港", "澳門", 
-      "北京", "上海", "廣州", "深圳", "雪梨", "墨爾本", "奧克蘭", "溫哥華", "多倫多", 
-      "洛杉磯", "舊金山", "芝加哥", "西雅圖", "波士頓", "邁阿密", "拉斯維加斯", "檀香山",
-      "安卡拉", "開羅"
-    ];
-    if (famousCities.includes(chinese) || chinese.includes('(')) return chinese;
     return `${chinese} (${englishName})`;
   }
   return englishName;
 };
 
-const getDisplayCountryName = (englishName) => COUNTRY_TRANSLATIONS[englishName] || englishName;
+// 格式化顯示名稱：中文 (英文)
+const getDisplayCountryName = (englishName) => {
+    const chinese = COUNTRY_TRANSLATIONS[englishName];
+    if (chinese) {
+        return `${chinese} (${englishName})`;
+    }
+    return englishName;
+};
 
 // Helper: Fetch Route from OSRM
 const fetchRoutePath = async (lat1, lng1, lat2, lng2) => {
@@ -167,7 +154,6 @@ const fetchRoutePath = async (lat1, lng1, lat2, lng2) => {
         const data = await res.json();
         
         if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-            // OSRM returns [lng, lat], Leaflet needs [lat, lng]
             const coords = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
             return coords;
         }
@@ -247,11 +233,9 @@ export default function TravelMapApp() {
   
   const latestDataRef = useRef({ trips: [], allCountries: [] });
 
-  // 1. Safe date formatting
   const safeDateDisplay = (date) => {
     if (!date) return '';
     if (typeof date === 'string') return date;
-    // Check if it is a Firestore Timestamp
     if (date?.toDate) return date.toDate().toLocaleDateString();
     return String(date);
   };
@@ -260,7 +244,38 @@ export default function TravelMapApp() {
     latestDataRef.current = { trips, allCountries };
   }, [trips, allCountries]);
 
-  // 3. Auth
+  // Load Scripts from CDN
+  useEffect(() => {
+    const loadScript = (src, id) => {
+        if (document.getElementById(id)) return;
+        const script = document.createElement('script');
+        script.id = id;
+        script.src = src;
+        script.async = true;
+        document.body.appendChild(script);
+    };
+    const loadStyle = (href, id) => {
+        if (document.getElementById(id)) return;
+        const link = document.createElement('link');
+        link.id = id;
+        link.rel = 'stylesheet';
+        link.href = href;
+        document.head.appendChild(link);
+    };
+
+    loadStyle('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'leaflet-css');
+    loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'leaflet-js');
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas-js');
+
+    const checkLibs = setInterval(() => {
+        if (window.L && window.html2canvas) {
+            setMapLoaded(true);
+            clearInterval(checkLibs);
+        }
+    }, 500);
+    return () => clearInterval(checkLibs);
+  }, []);
+
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -274,7 +289,6 @@ export default function TravelMapApp() {
     return () => unsubscribe();
   }, []);
 
-  // 4. Data Sync
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'travel_trips'), orderBy('createdAt', 'desc'));
@@ -282,7 +296,6 @@ export default function TravelMapApp() {
       (snapshot) => {
         const loadedTrips = snapshot.docs.map(doc => {
             const data = doc.data();
-            // JSON Parse Path
             let parsedRoute = null;
             if (data.routePath) {
                 try {
@@ -295,7 +308,6 @@ export default function TravelMapApp() {
         setLoading(false);
       },
       (error) => {
-        // Fallback if index missing
         const fallbackQ = collection(db, 'artifacts', appId, 'users', user.uid, 'travel_trips');
         onSnapshot(fallbackQ, (snap) => {
             const loaded = snap.docs.map(doc => {
@@ -317,7 +329,6 @@ export default function TravelMapApp() {
     return () => unsubscribe();
   }, [user]);
 
-  // 5. Country List
   useEffect(() => {
     const fetchCountries = async () => {
       try {
@@ -344,7 +355,6 @@ export default function TravelMapApp() {
     fetchCountries();
   }, []);
 
-  // 6. Coordinates
   const fetchCoordinates = async (city, country) => {
     try {
       const query = `${city.split(' (')[0]}, ${country}`;
@@ -359,7 +369,6 @@ export default function TravelMapApp() {
     return null;
   };
 
-  // 7. Cities
   const fetchCitiesForCountry = async (country, type) => {
     if (!country) return;
     const setLoading = type === 'origin' ? setIsLoadingOriginCities : setIsLoadingDestCities;
@@ -385,23 +394,24 @@ export default function TravelMapApp() {
         setCities([]);
       }
     } catch (error) {
-      console.error(`Failed to fetch cities for ${country}`, error);
       setCities([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // 8. Map Initialization
+  // Map Init
   useEffect(() => {
-    // 只要有 mapContainerRef 就可以初始化
-    if (!mapContainerRef.current) return;
+    if (!mapLoaded || mapInstanceRef.current || !mapContainerRef.current) return;
+    const L = window.L;
     
-    // Check if map already exists
-    if (mapInstanceRef.current) {
-        mapInstanceRef.current.invalidateSize();
-        return;
-    }
+    // Set default icons for CDN loaded Leaflet
+    delete L.Icon.Default.prototype._getIconUrl;
+    L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    });
 
     const map = L.map(mapContainerRef.current, { preferCanvas: true }).setView([48, 15], 4); 
     
@@ -412,7 +422,6 @@ export default function TravelMapApp() {
       crossOrigin: true 
     }).addTo(map);
     mapInstanceRef.current = map;
-    setMapLoaded(true);
 
     map.on('click', (e) => {
       if (pickingLocationMode.current) {
@@ -463,6 +472,7 @@ export default function TravelMapApp() {
                   let initOriginCity = '';
                   let initOriginLat = null;
                   let initOriginLng = null;
+                  let initDestCountry = '';
 
                   if (trips.length > 0) {
                       const sortedTrips = [...trips].sort((a, b) => new Date(b.dateEnd) - new Date(a.dateEnd));
@@ -476,7 +486,7 @@ export default function TravelMapApp() {
                   setFormData({
                     originCountry: initOriginCountry, originCity: initOriginCity, 
                     originLat: initOriginLat, originLng: initOriginLng,
-                    destCountry: '', destCity: '', destLat: null, destLng: null,
+                    destCountry: initDestCountry, destCity: '', destLat: null, destLng: null,
                     dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
                     transport: 'plane', cost: '', currency: 'EUR',
                     transportNumber: '', seatNumber: '', seatType: 'window', notes: '',
@@ -494,31 +504,12 @@ export default function TravelMapApp() {
           }
         }).addTo(map);
       });
-  }, []);
+  }, [mapLoaded]);
 
-  // Picking mode listener
-  useEffect(() => {
-    if(!mapInstanceRef.current) return;
-    const map = mapInstanceRef.current;
-    const handleMapClick = () => {
-      setTimeout(() => {
-         if (isPickingMode) {
-             setIsPickingMode(false);
-             setIsModalOpen(true); 
-             const cursorStyle = document.getElementById('map-cursor-style');
-             if (cursorStyle) cursorStyle.innerHTML = '';
-         }
-         pickingLocationMode.current = null;
-      }, 200);
-    };
-    map.on('click', handleMapClick);
-    return () => map.off('click', handleMapClick);
-  }, [isPickingMode]);
-
-  // Render Map Layers
   const renderMapLayers = (tripsToRender) => {
-    if (!mapInstanceRef.current) return;
+    if (!mapInstanceRef.current || !window.L) return;
     const map = mapInstanceRef.current;
+    const L = window.L;
     
     layersRef.current.forEach(layer => map.removeLayer(layer));
     layersRef.current = [];
@@ -599,26 +590,20 @@ export default function TravelMapApp() {
     e.preventDefault();
     if (!user) return;
     
-    // Auto-fetch route before saving
     let finalRoutePath = null;
     const transportType = TRANSPORT_TYPES[formData.transport];
     
-    // Check if coordinates exist before fetching route
-    if (transportType && transportType.useRoute && 
-        formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
-        // Fetch coordinates
+    if (transportType && transportType.useRoute && formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
         try {
             const url = `https://router.project-osrm.org/route/v1/driving/${formData.originLng},${formData.originLat};${formData.destLng},${formData.destLat}?overview=full&geometries=geojson`;
             const res = await fetch(url);
             const data = await res.json();
             if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-                // OSRM returns [lng, lat], Leaflet needs [lat, lng]
                 finalRoutePath = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
             }
         } catch(e) { console.error("Route error", e); }
     }
     
-    // ★★★ 修正：將路徑轉為字串存入 Firebase (避免 Nested Array Error) ★★★
     const finalData = {
         ...formData,
         routePath: finalRoutePath ? JSON.stringify(finalRoutePath) : null
@@ -663,7 +648,7 @@ export default function TravelMapApp() {
   };
 
   const performExport = async () => {
-    if (!captureRef.current || !html2canvas || !mapInstanceRef.current) return;
+    if (!captureRef.current || !window.html2canvas || !mapInstanceRef.current) return;
     
     setIsExporting(true);
     setIsExportModalOpen(false);
@@ -726,7 +711,7 @@ export default function TravelMapApp() {
         try {
             await new Promise(resolve => setTimeout(resolve, 1200)); 
 
-            const canvas = await html2canvas(captureRef.current, {
+            const canvas = await window.html2canvas(captureRef.current, {
                 useCORS: true,
                 allowTaint: true,
                 logging: false,
@@ -861,7 +846,7 @@ export default function TravelMapApp() {
           </div>
           <button 
             onClick={() => setIsExportModalOpen(true)}
-            disabled={!html2canvas || isExporting}
+            disabled={!mapLoaded || isExporting}
             className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="匯出地圖圖片"
           >
@@ -1041,6 +1026,7 @@ export default function TravelMapApp() {
       {isModalOpen && (
         <div className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-0 md:p-4">
           <div className="bg-white md:rounded-xl shadow-2xl w-full max-w-2xl h-full md:h-auto md:max-h-[90vh] overflow-y-auto flex flex-col animate-in fade-in zoom-in duration-200">
+            
             <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 {editingId ? '編輯旅程細節' : '新增旅程細節'}
@@ -1049,11 +1035,14 @@ export default function TravelMapApp() {
                 <X size={28} />
               </button>
             </div>
+
             <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-6">
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
                 {renderCityInput('origin')}
                 {renderCityInput('dest')}
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1">出發時間</label>
@@ -1086,6 +1075,7 @@ export default function TravelMapApp() {
                   )}
                 </div>
               </div>
+
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-3">交通工具類型</label>
                 <div className="grid grid-cols-4 gap-3">
@@ -1108,6 +1098,7 @@ export default function TravelMapApp() {
               </div>
 
               <div className="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">交通票價 / 費用</label>
@@ -1195,6 +1186,71 @@ export default function TravelMapApp() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 匯出選項 Modal */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-[2200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 animate-in fade-in zoom-in duration-200">
+            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <Download size={20} className="text-blue-600"/> 匯出地圖設定
+            </h3>
+            
+            <div className="space-y-4 mb-6">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" name="exportMode" value="all" 
+                    checked={exportMode === 'all'}
+                    onChange={() => setExportMode('all')}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-gray-700">匯出全部旅程</span>
+                </label>
+                
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" name="exportMode" value="range" 
+                    checked={exportMode === 'range'}
+                    onChange={() => setExportMode('range')}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-gray-700">指定日期區間</span>
+                </label>
+              </div>
+
+              {exportMode === 'range' && (
+                <div className="bg-gray-50 p-3 rounded border space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">開始日期</label>
+                    <input type="date" className="w-full p-2 border rounded text-sm" 
+                      value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">結束日期</label>
+                    <input type="date" className="w-full p-2 border rounded text-sm" 
+                      value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setIsExportModalOpen(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              >
+                取消
+              </button>
+              <button 
+                onClick={performExport}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded shadow transition-colors"
+              >
+                開始匯出
+              </button>
+            </div>
           </div>
         </div>
       )}
