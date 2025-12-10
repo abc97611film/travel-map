@@ -4,8 +4,6 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
 import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map } from 'lucide-react';
 
-// 注意：我們使用 CDN 動態載入 Leaflet 和 html2canvas，以相容預覽環境與本機環境
-
 // -----------------------------------------------------------------------------
 // 1. Firebase 初始化
 // -----------------------------------------------------------------------------
@@ -379,7 +377,7 @@ export default function TravelMapApp() {
                        setIsCheckingId(false);
                        return;
                   }
-                  // 是舊地圖，允許進入，不強制檢查密碼（或提示補設）
+                  // 是舊地圖，允許進入
               }
           }
 
@@ -827,21 +825,31 @@ export default function TravelMapApp() {
   };
 
   const performExport = async () => {
-    // 修正：如果 window.html2canvas 不存在，提示等待
+    // 修正：若工具未載入，顯示警告並嘗試重試，而非靜默失敗
     if (!window.html2canvas) {
-        alert("截圖功能正在載入中，請稍候再試...");
+        alert("截圖工具正在載入中，請稍候 3 秒再試！\n如果一直無法使用，請檢查網路連線。");
         return;
     }
     
-    if (!captureRef.current || !mapInstanceRef.current) return;
+    // 確保有地圖實例和 DOM 參照
+    if (!captureRef.current || !mapInstanceRef.current) {
+        alert("地圖尚未完全載入，請稍候。");
+        return;
+    }
 
     setIsExporting(true);
     setIsExportModalOpen(false);
     const map = mapInstanceRef.current;
+    
+    // 暫存地圖狀態
     const originalCenter = map.getCenter();
     const originalZoom = map.getZoom();
+    
+    // 隱藏不必要的控制項
     const controls = document.querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution');
     controls.forEach(el => el.style.display = 'none');
+
+    // 設定高解析度尺寸 (4:3)
     const originalStyle = {
         width: captureRef.current.style.width,
         height: captureRef.current.style.height,
@@ -858,6 +866,7 @@ export default function TravelMapApp() {
     captureRef.current.style.zIndex = '9999';
     map.invalidateSize();
 
+    // 篩選與縮放
     let filteredTrips = trips;
     if (exportMode === 'range' && exportStartDate && exportEndDate) {
         filteredTrips = trips.filter(t => t.dateStart >= exportStartDate && t.dateStart <= exportEndDate);
@@ -878,12 +887,23 @@ export default function TravelMapApp() {
     if (hasPoints && bounds.isValid()) map.fitBounds(bounds, { padding: [50, 50], animate: false });
     else map.setView([20, 0], 2, { animate: false });
 
+    // 延遲截圖
     setTimeout(async () => {
         try {
-            await new Promise(resolve => setTimeout(resolve, 1200)); 
-            const canvas = await window.html2canvas(captureRef.current, { useCORS: true, allowTaint: true, logging: false, scale: 1.5, width: 1600, height: 1200, windowWidth: 1600, windowHeight: 1200 });
+            await new Promise(resolve => setTimeout(resolve, 1500)); // 增加等待時間確保地圖渲染
+            const canvas = await window.html2canvas(captureRef.current, { 
+                useCORS: true, 
+                allowTaint: true, 
+                logging: false, 
+                scale: 1.5, 
+                width: 1600, 
+                height: 1200, 
+                windowWidth: 1600, 
+                windowHeight: 1200 
+            });
+            
             canvas.toBlob((blob) => {
-                if (!blob) { alert("匯出失敗：無法產生圖片"); return; }
+                if (!blob) { alert("匯出失敗：無法產生圖片資料"); return; }
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 const timestamp = new Date().toISOString().slice(0,10);
@@ -895,8 +915,11 @@ export default function TravelMapApp() {
                 document.body.removeChild(link);
                 URL.revokeObjectURL(url);
             }, 'image/png');
-        } catch (err) { console.error("Export failed:", err); alert("匯出失敗，請檢查網路連線"); } 
-        finally {
+        } catch (err) { 
+            console.error("Export failed:", err); 
+            alert(`匯出失敗: ${err.message || '未知錯誤'}`); 
+        } finally {
+            // 復原狀態
             captureRef.current.style.width = originalStyle.width;
             captureRef.current.style.height = originalStyle.height;
             captureRef.current.style.position = originalStyle.position;
