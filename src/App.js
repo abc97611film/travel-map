@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc } from 'firebase/firestore';
+// ★★★ 修正：補上漏掉的 limit 和 getDocs ★★★
+import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
 import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 和 html2canvas，以相容預覽環境與本機環境
