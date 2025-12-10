@@ -7,7 +7,7 @@ import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Glob
 // 注意：我們使用 CDN 動態載入 Leaflet 和 html2canvas，以相容預覽環境與本機環境
 
 // -----------------------------------------------------------------------------
-// 1. Firebase 初始化 (您的專屬金鑰)
+// 1. Firebase 初始化
 // -----------------------------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyCFNcDaHTOx4lETnJk844Eq6EZs1AbF9_8",
@@ -508,22 +508,19 @@ export default function TravelMapApp() {
     return () => unsubscribe();
   }, [user, currentMapId]); // 當 Map ID 改變時重新監聽
 
-  // ★★★ 修正：使用靜態翻譯資料庫生成國家列表，確保百分之百有中文 ★★★
   useEffect(() => {
     const countries = Object.entries(COUNTRY_TRANSLATIONS).map(([key, value]) => ({
-        name: key, // 英文名作為 ID
-        label: `${value} (${key})` // 顯示名：中文 (英文)
+        name: key,
+        label: `${value} (${key})`
     }));
-    
-    // 排序：台灣優先 > 匈牙利 > 英文 A-Z
     countries.sort((a, b) => {
+        // 修正排序：台灣 -> 匈牙利 -> 其他
         if (a.name === "Taiwan") return -1;
         if (b.name === "Taiwan") return 1;
         if (a.name === "Hungary") return -1;
         if (b.name === "Hungary") return 1;
         return a.name.localeCompare(b.name);
     });
-    
     setAllCountries(countries);
   }, []);
 
@@ -830,14 +827,14 @@ export default function TravelMapApp() {
   };
 
   const performExport = async () => {
-    if (!captureRef.current || !window.html2canvas || !mapInstanceRef.current) return;
-    // ★★★ 修正：如果未載入，嘗試載入或提示 ★★★
+    // 修正：如果 window.html2canvas 不存在，提示等待
     if (!window.html2canvas) {
-        // 重試載入邏輯 (略) 或簡單提示
-        alert("匯出元件尚未準備好，請稍後再試。");
+        alert("截圖功能正在載入中，請稍候再試...");
         return;
     }
     
+    if (!captureRef.current || !mapInstanceRef.current) return;
+
     setIsExporting(true);
     setIsExportModalOpen(false);
     const map = mapInstanceRef.current;
@@ -886,7 +883,7 @@ export default function TravelMapApp() {
             await new Promise(resolve => setTimeout(resolve, 1200)); 
             const canvas = await window.html2canvas(captureRef.current, { useCORS: true, allowTaint: true, logging: false, scale: 1.5, width: 1600, height: 1200, windowWidth: 1600, windowHeight: 1200 });
             canvas.toBlob((blob) => {
-                if (!blob) { alert("匯出失敗"); return; }
+                if (!blob) { alert("匯出失敗：無法產生圖片"); return; }
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 const timestamp = new Date().toISOString().slice(0,10);
@@ -898,7 +895,7 @@ export default function TravelMapApp() {
                 document.body.removeChild(link);
                 URL.revokeObjectURL(url);
             }, 'image/png');
-        } catch (err) { console.error("Export failed:", err); alert("匯出失敗"); } 
+        } catch (err) { console.error("Export failed:", err); alert("匯出失敗，請檢查網路連線"); } 
         finally {
             captureRef.current.style.width = originalStyle.width;
             captureRef.current.style.height = originalStyle.height;
