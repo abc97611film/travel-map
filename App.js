@@ -4,8 +4,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2 } from 'lucide-react';
 
-// 注意：移除了 import L 和 import html2canvas，改用 CDN 動態載入
-// 這樣可以確保在任何環境（包含預覽視窗）都能執行，不會報錯
+// 注意：不使用 import L / html2canvas，改用 CDN 動態載入，確保預覽與本機皆可執行
 
 // -----------------------------------------------------------------------------
 // 1. Firebase 初始化 (您的專屬金鑰)
@@ -84,7 +83,7 @@ const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0
 
 // --- 翻譯資料庫 ---
 const COUNTRY_TRANSLATIONS = {
-  "Taiwan": "台灣", // 確保台灣在清單中
+  "Taiwan": "台灣", 
   "France": "法國", "Germany": "德國", "United Kingdom": "英國", "Italy": "義大利", 
   "Spain": "西班牙", "Netherlands": "荷蘭", "Belgium": "比利時", "Switzerland": "瑞士",
   "Austria": "奧地利", "Czech Republic": "捷克", "Poland": "波蘭", "Hungary": "匈牙利",
@@ -97,7 +96,7 @@ const COUNTRY_TRANSLATIONS = {
   "Ukraine": "烏克蘭", "Russia": "俄羅斯", "Turkey": "土耳其", "North Macedonia": "北馬其頓",
   "Albania": "阿爾巴尼亞", "Montenegro": "蒙特內哥羅",
   
-  "Japan": "日本", "South Korea": "韓國", "Korea, South": "韓國", "Taiwan": "台灣", "China": "中國",
+  "Japan": "日本", "South Korea": "韓國", "Korea, South": "韓國", "China": "中國",
   "Hong Kong": "香港", "Macao": "澳門", "Singapore": "新加坡", "Malaysia": "馬來西亞",
   "Thailand": "泰國", "Vietnam": "越南", "Philippines": "菲律賓", "Indonesia": "印尼",
   "India": "印度", "Cambodia": "柬埔寨", "Myanmar": "緬甸", "Laos": "寮國",
@@ -110,6 +109,7 @@ const COUNTRY_TRANSLATIONS = {
   "Egypt": "埃及", "South Africa": "南非", "Morocco": "摩洛哥", "Kenya": "肯亞", "Tanzania": "坦尚尼亞"
 };
 
+// 城市翻譯表
 const CITY_TRANSLATIONS = {
   "Taipei": "台北", "Kaohsiung": "高雄", "Taichung": "台中", "Tainan": "台南", "Taoyuan": "桃園", "Hsinchu": "新竹", "Keelung": "基隆", "Chiayi": "嘉義", "Hualien": "花蓮", "Taitung": "台東",
   "Istanbul": "伊斯坦堡", "İstanbul": "伊斯坦堡", "Ankara": "安卡拉", "Izmir": "伊茲密爾", "İzmir": "伊茲密爾", "Antalya": "安塔利亞", "Bursa": "布爾薩", "Goreme": "格雷梅 (卡帕多奇亞)", "Göreme": "格雷梅 (卡帕多奇亞)", "Nevsehir": "內夫謝希爾", "Nevşehir": "內夫謝希爾", "Kayseri": "凱塞利", "Pamukkale": "棉堡", "Denizli": "德尼茲利 (棉堡入口)", "Konya": "孔亞", "Bodrum": "博德魯姆", "Fethiye": "費特希耶", "Kas": "卡什", "Kaş": "卡什", "Selcuk": "塞爾丘克 (以弗所)", "Selçuk": "塞爾丘克 (以弗所)", "Ephesus": "以弗所", "Canakkale": "恰納卡萊", "Çanakkale": "恰納卡萊", "Trabzon": "特拉布宗", "Adana": "阿達納", "Gaziantep": "加濟安泰普", "Sanliurfa": "尚勒烏爾法", "Şanlıurfa": "尚勒烏爾法", "Mardin": "馬爾丁", "Alanya": "阿蘭亞", "Kusadasi": "庫薩達斯", "Kuşadası": "庫薩達斯",
@@ -127,7 +127,6 @@ const CITY_TRANSLATIONS = {
   "New York": "紐約", "Los Angeles": "洛杉磯", "San Francisco": "舊金山", "Chicago": "芝加哥", "Toronto": "多倫多", "Vancouver": "溫哥華", "Sydney": "雪梨", "Melbourne": "墨爾本", "Brisbane": "布里斯本", "Perth": "柏斯", "Auckland": "奧克蘭", "Christchurch": "基督城", "Queenstown": "皇后鎮", "Cairo": "開羅", "Marrakech": "馬拉喀什"
 };
 
-// 格式化顯示名稱：中文 (英文)
 const getDisplayCityName = (englishName) => {
   if (!englishName) return '';
   const chinese = CITY_TRANSLATIONS[englishName];
@@ -137,14 +136,7 @@ const getDisplayCityName = (englishName) => {
   return englishName;
 };
 
-// 格式化顯示名稱：中文 (英文)
-const getDisplayCountryName = (englishName) => {
-    const chinese = COUNTRY_TRANSLATIONS[englishName];
-    if (chinese) {
-        return `${chinese} (${englishName})`;
-    }
-    return englishName;
-};
+const getDisplayCountryName = (englishName) => COUNTRY_TRANSLATIONS[englishName] || englishName;
 
 // Helper: Fetch Route from OSRM
 const fetchRoutePath = async (lat1, lng1, lat2, lng2) => {
@@ -154,6 +146,7 @@ const fetchRoutePath = async (lat1, lng1, lat2, lng2) => {
         const data = await res.json();
         
         if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+            // OSRM returns [lng, lat], Leaflet needs [lat, lng]
             const coords = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
             return coords;
         }
@@ -212,6 +205,9 @@ export default function TravelMapApp() {
   const [isLoadingOriginCities, setIsLoadingOriginCities] = useState(false);
   const [isLoadingDestCities, setIsLoadingDestCities] = useState(false);
   
+  // 地圖載入狀態，這裡為了相容性我們手動檢查全域變數
+  const [libLoaded, setLibLoaded] = useState(false);
+
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
     destCountry: '', destCity: '', destLat: null, destLng: null,
@@ -244,7 +240,7 @@ export default function TravelMapApp() {
     latestDataRef.current = { trips, allCountries };
   }, [trips, allCountries]);
 
-  // Load Scripts from CDN
+  // ★★★ CDN 載入機制：同時支援預覽與本機 ★★★
   useEffect(() => {
     const loadScript = (src, id) => {
         if (document.getElementById(id)) return;
@@ -263,14 +259,24 @@ export default function TravelMapApp() {
         document.head.appendChild(link);
     };
 
+    // 載入 Leaflet 和 html2canvas
     loadStyle('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'leaflet-css');
     loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'leaflet-js');
     loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas-js');
 
+    // 輪詢檢查套件是否載入完成 (window.L 和 window.html2canvas)
     const checkLibs = setInterval(() => {
         if (window.L && window.html2canvas) {
-            setMapLoaded(true);
+            setLibLoaded(true);
             clearInterval(checkLibs);
+            
+            // 修正圖標路徑
+            delete window.L.Icon.Default.prototype._getIconUrl;
+            window.L.Icon.Default.mergeOptions({
+                iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+                iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            });
         }
     }, 500);
     return () => clearInterval(checkLibs);
@@ -394,6 +400,7 @@ export default function TravelMapApp() {
         setCities([]);
       }
     } catch (error) {
+      console.error(`Failed to fetch cities for ${country}`, error);
       setCities([]);
     } finally {
       setLoading(false);
@@ -402,16 +409,14 @@ export default function TravelMapApp() {
 
   // Map Init
   useEffect(() => {
-    if (!mapLoaded || mapInstanceRef.current || !mapContainerRef.current) return;
-    const L = window.L;
+    // 只要有 mapContainerRef 就可以初始化
+    if (!mapContainerRef.current) return;
     
-    // Set default icons for CDN loaded Leaflet
-    delete L.Icon.Default.prototype._getIconUrl;
-    L.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-    });
+    // Check if map already exists
+    if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize();
+        return;
+    }
 
     const map = L.map(mapContainerRef.current, { preferCanvas: true }).setView([48, 15], 4); 
     
@@ -422,6 +427,7 @@ export default function TravelMapApp() {
       crossOrigin: true 
     }).addTo(map);
     mapInstanceRef.current = map;
+    setMapLoaded(true);
 
     map.on('click', (e) => {
       if (pickingLocationMode.current) {
@@ -504,8 +510,28 @@ export default function TravelMapApp() {
           }
         }).addTo(map);
       });
-  }, [mapLoaded]);
+  }, []);
 
+  // Picking mode listener
+  useEffect(() => {
+    if(!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+    const handleMapClick = () => {
+      setTimeout(() => {
+         if (isPickingMode) {
+             setIsPickingMode(false);
+             setIsModalOpen(true); 
+             const cursorStyle = document.getElementById('map-cursor-style');
+             if (cursorStyle) cursorStyle.innerHTML = '';
+         }
+         pickingLocationMode.current = null;
+      }, 200);
+    };
+    map.on('click', handleMapClick);
+    return () => map.off('click', handleMapClick);
+  }, [isPickingMode]);
+
+  // Render Map Layers
   const renderMapLayers = (tripsToRender) => {
     if (!mapInstanceRef.current || !window.L) return;
     const map = mapInstanceRef.current;
@@ -581,29 +607,35 @@ export default function TravelMapApp() {
   };
 
   useEffect(() => {
-    if (!loading && !isExporting && mapLoaded) { 
+    if (!loading && !isExporting && libLoaded) { 
         renderMapLayers(trips);
     }
-  }, [trips, loading, isExporting, mapLoaded]);
+  }, [trips, loading, isExporting, libLoaded]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) return;
     
+    // Auto-fetch route before saving
     let finalRoutePath = null;
     const transportType = TRANSPORT_TYPES[formData.transport];
     
-    if (transportType && transportType.useRoute && formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
+    // Check if coordinates exist before fetching route
+    if (transportType && transportType.useRoute && 
+        formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
+        // Fetch coordinates
         try {
             const url = `https://router.project-osrm.org/route/v1/driving/${formData.originLng},${formData.originLat};${formData.destLng},${formData.destLat}?overview=full&geometries=geojson`;
             const res = await fetch(url);
             const data = await res.json();
             if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                // OSRM returns [lng, lat], Leaflet needs [lat, lng]
                 finalRoutePath = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
             }
         } catch(e) { console.error("Route error", e); }
     }
     
+    // ★★★ 修正：將路徑轉為字串存入 Firebase ★★★
     const finalData = {
         ...formData,
         routePath: finalRoutePath ? JSON.stringify(finalRoutePath) : null
@@ -844,9 +876,10 @@ export default function TravelMapApp() {
           <div className="text-xs opacity-70 hidden sm:block">
             {loading ? '載入中...' : `已記錄 ${trips.length} 趟旅程`}
           </div>
+          {/* 匯出按鈕：開啟選項視窗 */}
           <button 
             onClick={() => setIsExportModalOpen(true)}
-            disabled={!mapLoaded || isExporting}
+            disabled={!libLoaded || isExporting}
             className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="匯出地圖圖片"
           >
@@ -1026,7 +1059,6 @@ export default function TravelMapApp() {
       {isModalOpen && (
         <div className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-0 md:p-4">
           <div className="bg-white md:rounded-xl shadow-2xl w-full max-w-2xl h-full md:h-auto md:max-h-[90vh] overflow-y-auto flex flex-col animate-in fade-in zoom-in duration-200">
-            
             <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 {editingId ? '編輯旅程細節' : '新增旅程細節'}
@@ -1035,14 +1067,11 @@ export default function TravelMapApp() {
                 <X size={28} />
               </button>
             </div>
-
             <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-6">
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
                 {renderCityInput('origin')}
                 {renderCityInput('dest')}
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1">出發時間</label>
@@ -1075,7 +1104,6 @@ export default function TravelMapApp() {
                   )}
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-3">交通工具類型</label>
                 <div className="grid grid-cols-4 gap-3">
@@ -1098,7 +1126,6 @@ export default function TravelMapApp() {
               </div>
 
               <div className="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">交通票價 / 費用</label>
@@ -1136,7 +1163,6 @@ export default function TravelMapApp() {
                     </div>
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">座位詳情</label>
                   <div className="flex gap-2">
@@ -1159,7 +1185,6 @@ export default function TravelMapApp() {
                     </select>
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">備註</label>
                   <textarea 
@@ -1170,7 +1195,6 @@ export default function TravelMapApp() {
                   />
                 </div>
               </div>
-
               <div className="pt-4 flex justify-end gap-3 border-t mt-4 pb-8 md:pb-0">
                 <button 
                   type="button" onClick={() => setIsModalOpen(false)}
@@ -1186,71 +1210,6 @@ export default function TravelMapApp() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* 匯出選項 Modal */}
-      {isExportModalOpen && (
-        <div className="fixed inset-0 z-[2200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 animate-in fade-in zoom-in duration-200">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Download size={20} className="text-blue-600"/> 匯出地圖設定
-            </h3>
-            
-            <div className="space-y-4 mb-6">
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" name="exportMode" value="all" 
-                    checked={exportMode === 'all'}
-                    onChange={() => setExportMode('all')}
-                    className="w-4 h-4 text-blue-600"
-                  />
-                  <span className="text-gray-700">匯出全部旅程</span>
-                </label>
-                
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" name="exportMode" value="range" 
-                    checked={exportMode === 'range'}
-                    onChange={() => setExportMode('range')}
-                    className="w-4 h-4 text-blue-600"
-                  />
-                  <span className="text-gray-700">指定日期區間</span>
-                </label>
-              </div>
-
-              {exportMode === 'range' && (
-                <div className="bg-gray-50 p-3 rounded border space-y-3">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">開始日期</label>
-                    <input type="date" className="w-full p-2 border rounded text-sm" 
-                      value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">結束日期</label>
-                    <input type="date" className="w-full p-2 border rounded text-sm" 
-                      value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <button 
-                onClick={() => setIsExportModalOpen(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded transition-colors"
-              >
-                取消
-              </button>
-              <button 
-                onClick={performExport}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded shadow transition-colors"
-              >
-                開始匯出
-              </button>
-            </div>
           </div>
         </div>
       )}
