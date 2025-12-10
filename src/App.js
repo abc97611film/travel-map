@@ -4,9 +4,10 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Navigation } from 'lucide-react';
 
-// 使用 CDN 動態載入，確保預覽與本機皆可執行
+// 注意：我們使用 CDN 動態載入 Leaflet 和 html2canvas，以相容預覽環境與本機環境
+
 // -----------------------------------------------------------------------------
-// 1. Firebase 初始化
+// 1. Firebase 初始化 (您的專屬金鑰)
 // -----------------------------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyCFNcDaHTOx4lETnJk844Eq6EZs1AbF9_8",
@@ -28,6 +29,8 @@ try {
     console.error("Firebase init error", e);
 }
 const appId = 'travel-map-v1'; 
+// ★★★ 新增：共用 ID，讓所有裝置讀寫同一個資料夾，實現同步！ ★★★
+const SHARED_ID = 'my_shared_trip_data_2025'; 
 
 // -----------------------------------------------------------------------------
 // 2. 靜態資料庫：解決 API 空白與翻譯問題的關鍵
@@ -337,7 +340,8 @@ export default function TravelMapApp() {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'travel_trips'), orderBy('createdAt', 'desc'));
+    // ★★★ 修正：使用 SHARED_ID 讀取共用資料 ★★★
+    const q = query(collection(db, 'artifacts', appId, 'users', SHARED_ID, 'travel_trips'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
         const loadedTrips = snapshot.docs.map(doc => {
@@ -354,7 +358,7 @@ export default function TravelMapApp() {
         setLoading(false);
       },
       (error) => {
-        const fallbackQ = collection(db, 'artifacts', appId, 'users', user.uid, 'travel_trips');
+        const fallbackQ = collection(db, 'artifacts', appId, 'users', SHARED_ID, 'travel_trips');
         onSnapshot(fallbackQ, (snap) => {
             const loaded = snap.docs.map(doc => {
                 const data = doc.data();
@@ -531,7 +535,6 @@ export default function TravelMapApp() {
 
     if (geoJsonLayerRef.current) {
         const today = new Date().toISOString().split('T')[0];
-        // 只要行程是過去或進行中，相關國家都亮起
         const activeTrips = tripsToRender.filter(t => t.dateStart && t.dateStart <= today);
         const visitedCountries = new Set(activeTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
         
@@ -553,7 +556,6 @@ export default function TravelMapApp() {
         const isFutureOrNoDate = !trip.dateStart || trip.dateStart > today;
         let polyline;
         
-        // ★★★ 確保使用抓取到的路徑資料 ★★★
         if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
             polyline = L.polyline(trip.routePath, { color: typeConfig.color, weight: 3, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null }).addTo(map);
         } else {
@@ -670,11 +672,12 @@ export default function TravelMapApp() {
     
     const finalData = { ...formData, routePath: finalRoutePath ? JSON.stringify(finalRoutePath) : null };
 
+    // ★★★ 修正：使用 SHARED_ID 存入資料 ★★★
     try {
       if (editingId) {
-        await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'travel_trips', editingId), { ...finalData, updatedAt: serverTimestamp() });
+        await updateDoc(doc(db, 'artifacts', appId, 'users', SHARED_ID, 'travel_trips', editingId), { ...finalData, updatedAt: serverTimestamp() });
       } else {
-        await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'travel_trips'), { ...finalData, createdAt: serverTimestamp() });
+        await addDoc(collection(db, 'artifacts', appId, 'users', SHARED_ID, 'travel_trips'), { ...finalData, createdAt: serverTimestamp() });
       }
       setIsModalOpen(false);
       if (mapInstanceRef.current && pickerMarkerRef.current) {
@@ -688,7 +691,8 @@ export default function TravelMapApp() {
   const requestDelete = (e, id) => { e.stopPropagation(); setDeleteConfirmId(id); };
   const confirmDelete = async () => {
     if (!user || !deleteConfirmId) return;
-    try { await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'travel_trips', deleteConfirmId)); setDeleteConfirmId(null); } 
+    // ★★★ 修正：使用 SHARED_ID 刪除資料 ★★★
+    try { await deleteDoc(doc(db, 'artifacts', appId, 'users', SHARED_ID, 'travel_trips', deleteConfirmId)); setDeleteConfirmId(null); } 
     catch (err) { console.error("Error deleting trip:", err); }
   };
 
