@@ -18,7 +18,6 @@ const firebaseConfig = {
   appId: "1:143054225690:web:ff2d9355401cce41c02ca3"
 };
 
-// 避免重複初始化
 let app;
 let auth;
 let db;
@@ -31,32 +30,13 @@ try {
 }
 const appId = 'travel-map-v1'; 
 
-// ★★★ 核心修改：動態取得 Map ID ★★★
-// 從網址參數 (?map=xxx) 取得 ID，如果沒有則使用 'default'
-const getMapIdFromUrl = () => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('map') || 'default';
-};
-
 // -----------------------------------------------------------------------------
-// 2. 翻譯資料庫 (繁體中文 - 台灣慣用語)
+// 2. 翻譯資料庫 (繁體中文 - 台灣慣用語) - 終極完整版
 // -----------------------------------------------------------------------------
 const COUNTRY_TRANSLATIONS = {
-  "Taiwan": "台灣", "Japan": "日本", "South Korea": "韓國", "China": "中國",
-  "Hong Kong": "香港", "Macao": "澳門", "North Macedonia": "北馬其頓",
-  "France": "法國", "Germany": "德國", "United Kingdom": "英國", "Italy": "義大利", 
-  "Spain": "西班牙", "Netherlands": "荷蘭", "Belgium": "比利時", "Switzerland": "瑞士",
-  "Austria": "奧地利", "Czech Republic": "捷克", "Poland": "波蘭", "Hungary": "匈牙利",
-  "Portugal": "葡萄牙", "Greece": "希臘", "Sweden": "瑞典", "Norway": "挪威",
-  "Finland": "芬蘭", "Denmark": "丹麥", "Ireland": "愛爾蘭", "Iceland": "冰島",
-  "Luxembourg": "盧森堡", "Monaco": "摩納哥", "Vatican City": "梵蒂岡", "Liechtenstein": "列支敦斯登",
-  "Malta": "馬爾他", "Cyprus": "賽普勒斯", "Estonia": "愛沙尼亞", "Latvia": "拉脫維亞",
-  "Lithuania": "立陶宛", "Slovakia": "斯洛伐克", "Slovenia": "斯洛維尼亞", "Croatia": "克羅埃西亞",
-  "Romania": "羅馬尼亞", "Bulgaria": "保加利亞", "Serbia": "塞爾維亞", "Bosnia and Herzegovina": "波士尼亞與赫塞哥維納",
-  "Ukraine": "烏克蘭", "Russia": "俄羅斯", "Turkey": "土耳其", 
-  "Albania": "阿爾巴尼亞", "Montenegro": "蒙特內哥羅", "Kosovo": "科索沃",
-  "United States": "美國", "Canada": "加拿大", "Australia": "澳洲", "New Zealand": "紐西蘭",
-  "Egypt": "埃及", "Morocco": "摩洛哥", "Singapore": "新加坡", "Malaysia": "馬來西亞",
+  // === 亞洲 (Asia) ===
+  "Taiwan": "台灣", "Japan": "日本", "South Korea": "韓國", "Korea, South": "韓國", "China": "中國",
+  "Hong Kong": "香港", "Macao": "澳門", "Singapore": "新加坡", "Malaysia": "馬來西亞",
   "Thailand": "泰國", "Vietnam": "越南", "Philippines": "菲律賓", "Indonesia": "印尼",
   "India": "印度", "Cambodia": "柬埔寨", "Myanmar": "緬甸", "Laos": "寮國",
   "Mongolia": "蒙古", "Nepal": "尼泊爾", "Sri Lanka": "斯里蘭卡", "Maldives": "馬爾地夫",
@@ -64,22 +44,48 @@ const COUNTRY_TRANSLATIONS = {
   "Pakistan": "巴基斯坦", "Afghanistan": "阿富汗",
   "Kazakhstan": "哈薩克", "Uzbekistan": "烏茲別克", "Turkmenistan": "土庫曼", 
   "Kyrgyzstan": "吉爾吉斯", "Tajikistan": "塔吉克",
-  "Andorra": "安道爾", "San Marino": "聖馬利諾", "Belarus": "白俄羅斯", "Moldova": "摩爾多瓦",
-  "Mexico": "墨西哥", "Brazil": "巴西", "Argentina": "阿根廷", "Chile": "智利", "Peru": "秘魯", "Colombia": "哥倫比亞",
+
+  // === 歐洲 (Europe) - 包含所有微型國家與屬地 ===
+  "Albania": "阿爾巴尼亞", "Andorra": "安道爾", "Armenia": "亞美尼亞", "Austria": "奧地利", 
+  "Azerbaijan": "亞塞拜然", "Belarus": "白俄羅斯", "Belgium": "比利時", 
+  "Bosnia and Herzegovina": "波士尼亞與赫塞哥維納", "Bulgaria": "保加利亞", 
+  "Croatia": "克羅埃西亞", "Cyprus": "賽普勒斯", "Czech Republic": "捷克", 
+  "Denmark": "丹麥", "Estonia": "愛沙尼亞", "Faroe Islands": "法羅群島", 
+  "Finland": "芬蘭", "France": "法國", "Georgia": "喬治亞", "Germany": "德國", 
+  "Gibraltar": "直布羅陀", "Greece": "希臘", "Hungary": "匈牙利", "Iceland": "冰島", 
+  "Ireland": "愛爾蘭", "Italy": "義大利", "Kosovo": "科索沃", "Latvia": "拉脫維亞", 
+  "Liechtenstein": "列支敦斯登", "Lithuania": "立陶宛", "Luxembourg": "盧森堡", 
+  "Malta": "馬爾他", "Moldova": "摩爾多瓦", "Monaco": "摩納哥", "Montenegro": "蒙特內哥羅", 
+  "Netherlands": "荷蘭", "North Macedonia": "北馬其頓", "Norway": "挪威", "Poland": "波蘭", 
+  "Portugal": "葡萄牙", "Romania": "羅馬尼亞", "Russia": "俄羅斯", "San Marino": "聖馬利諾", 
+  "Serbia": "塞爾維亞", "Slovakia": "斯洛伐克", "Slovenia": "斯洛維尼亞", "Spain": "西班牙", 
+  "Sweden": "瑞典", "Switzerland": "瑞士", "Turkey": "土耳其", "Ukraine": "烏克蘭", 
+  "United Kingdom": "英國", "Vatican City": "梵蒂岡", "Jersey": "澤西島", "Guernsey": "根西島",
+  "Isle of Man": "曼島",
+
+  // === 中東與北非 (MENA) ===
+  "Algeria": "阿爾及利亞", "Bahrain": "巴林", "Egypt": "埃及", "Iran": "伊朗", "Iraq": "伊拉克", 
+  "Israel": "以色列", "Jordan": "約旦", "Kuwait": "科威特", "Lebanon": "黎巴嫩", "Libya": "利比亞", 
+  "Morocco": "摩洛哥", "Oman": "阿曼", "Palestine": "巴勒斯坦", "Qatar": "卡達", 
+  "Saudi Arabia": "沙烏地阿拉伯", "Syria": "敘利亞", "Tunisia": "突尼西亞", 
+  "United Arab Emirates": "阿拉伯聯合大公國", "Yemen": "葉門", "Western Sahara": "西撒哈拉",
+
+  // === 美洲 (Americas) ===
+  "United States": "美國", "Canada": "加拿大", "Mexico": "墨西哥", "Brazil": "巴西", 
+  "Argentina": "阿根廷", "Chile": "智利", "Peru": "秘魯", "Colombia": "哥倫比亞",
   "Bolivia": "玻利維亞", "Ecuador": "厄瓜多", "Paraguay": "巴拉圭", "Uruguay": "烏拉圭",
   "Venezuela": "委內瑞拉", "Cuba": "古巴", "Jamaica": "牙買加", "Costa Rica": "哥斯大黎加",
   "Panama": "巴拿馬", "Bahamas": "巴哈馬", "Dominican Republic": "多明尼加", "Haiti": "海地",
   "Belize": "貝里斯", "Guatemala": "瓜地馬拉", "Honduras": "宏都拉斯", "El Salvador": "薩爾瓦多",
   "Nicaragua": "尼加拉瓜",
-  "Fiji": "斐濟", "Palau": "帛琉", "Guam": "關島",
+
+  // === 大洋洲 (Oceania) ===
+  "Australia": "澳洲", "New Zealand": "紐西蘭", "Fiji": "斐濟", "Palau": "帛琉", "Guam": "關島",
   "Papua New Guinea": "巴布亞紐幾內亞", "Solomon Islands": "索羅門群島", "Vanuatu": "萬那杜",
+
+  // === 非洲其他 (Sub-Saharan Africa) ===
   "South Africa": "南非", "Kenya": "肯亞", "Tanzania": "坦尚尼亞", "Ethiopia": "衣索比亞", 
-  "Nigeria": "奈及利亞", "Ghana": "迦納", "Madagascar": "馬達加斯加", "Sudan": "蘇丹",
-  "Algeria": "阿爾及利亞", "Bahrain": "巴林", "Iran": "伊朗", "Iraq": "伊拉克", 
-  "Israel": "以色列", "Jordan": "約旦", "Kuwait": "科威特", "Lebanon": "黎巴嫩", "Libya": "利比亞", 
-  "Oman": "阿曼", "Palestine": "巴勒斯坦", "Qatar": "卡達", 
-  "Saudi Arabia": "沙烏地阿拉伯", "Syria": "敘利亞", "Tunisia": "突尼西亞", 
-  "United Arab Emirates": "阿拉伯聯合大公國", "Yemen": "葉門", "Western Sahara": "西撒哈拉"
+  "Nigeria": "奈及利亞", "Ghana": "迦納", "Madagascar": "馬達加斯加", "Sudan": "蘇丹"
 };
 
 const CITY_TRANSLATIONS = {
@@ -114,7 +120,8 @@ const CITY_TRANSLATIONS = {
   "New York": "紐約", "Los Angeles": "洛杉磯", "Sydney": "雪梨", "Melbourne": "墨爾本"
 };
 
-// 預設城市清單
+// ★★★ 預設城市清單 (解決 API 缺漏問題) ★★★
+// 當選擇這些國家時，直接使用這裡的清單，不請求 API
 const PREDEFINED_CITIES = {
   "North Macedonia": ["Skopje", "Ohrid", "Bitola", "Kumanovo", "Prilep", "Tetovo", "Veles", "Stip", "Gostivar", "Strumica"],
   "Kosovo": ["Pristina", "Prizren", "Peja", "Gjakova", "Mitrovica"],
@@ -251,12 +258,18 @@ export default function TravelMapApp() {
   const [isLoadingOriginCities, setIsLoadingOriginCities] = useState(false);
   const [isLoadingDestCities, setIsLoadingDestCities] = useState(false);
   
+  // 手動輸入模式
   const [isOriginManual, setIsOriginManual] = useState(false);
   const [isDestManual, setIsDestManual] = useState(false);
   
   const [libLoaded, setLibLoaded] = useState(false);
   const [isPickingMode, setIsPickingMode] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
+
+  // ★★★ ID 相關狀態 ★★★
+  const [currentMapId, setCurrentMapId] = useState('');
+  const [isIdModalOpen, setIsIdModalOpen] = useState(true); // 預設開啟 ID 輸入框
+  const [tempMapIdInput, setTempMapIdInput] = useState(''); // 輸入框的暫存值
   
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
@@ -276,9 +289,6 @@ export default function TravelMapApp() {
   const pickingLocationMode = useRef(null);
   const latestDataRef = useRef({ trips: [], allCountries: [] });
 
-  // 取得當前 Map ID
-  const currentMapId = getMapIdFromUrl();
-
   const safeDateDisplay = (date) => {
     if (!date) return '';
     if (typeof date === 'string') return date;
@@ -289,6 +299,52 @@ export default function TravelMapApp() {
   useEffect(() => {
     latestDataRef.current = { trips, allCountries };
   }, [trips, allCountries]);
+
+  // ★★★ 初始化：檢查網址是否有 ID ★★★
+  useEffect(() => {
+      const params = new URLSearchParams(window.location.search);
+      const mapIdFromUrl = params.get('map');
+      if (mapIdFromUrl) {
+          setCurrentMapId(mapIdFromUrl);
+          setIsIdModalOpen(false); // 有 ID 就直接進入
+      } else {
+          setIsIdModalOpen(true); // 沒 ID 就跳出視窗
+      }
+  }, []);
+
+  // 處理 ID 提交
+  const handleIdSubmit = (e) => {
+      e.preventDefault();
+      if (!tempMapIdInput.trim()) return;
+      const cleanId = tempMapIdInput.trim().replace(/[^a-zA-Z0-9-_]/g, ''); // 簡單過濾
+      if (!cleanId) { alert("請輸入有效的 ID (英文、數字、底線或連字號)"); return; }
+      
+      setCurrentMapId(cleanId);
+      setIsIdModalOpen(false);
+      
+      // 更新網址但不刷新頁面
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.set('map', cleanId);
+      window.history.pushState({}, '', newUrl);
+  };
+
+  // Helper function to handle sharing
+  const handleShare = () => {
+      const url = window.location.href;
+      navigator.clipboard.writeText(url).then(() => {
+          alert(`網址已複製！傳送給朋友即可分享此地圖：\n${url}`);
+      });
+  };
+
+  // Helper function to switch map
+  const handleSwitchMap = () => {
+      const confirmSwitch = window.confirm("確定要切換地圖嗎？\n這將會回到 ID 輸入畫面。");
+      if (confirmSwitch) {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('map'); 
+          window.location.href = url.toString();
+      }
+  };
 
   // CDN 載入
   useEffect(() => {
@@ -342,9 +398,10 @@ export default function TravelMapApp() {
     return () => unsubscribe();
   }, []);
 
-  // 監聽資料庫 (使用動態 Map ID)
+  // ★★★ 監聽資料庫：只監聽當前 mapId ★★★
   useEffect(() => {
-    if (!user) return;
+    if (!user || !currentMapId) return; // 沒 ID 不動作
+
     const q = query(collection(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
@@ -381,7 +438,7 @@ export default function TravelMapApp() {
       }
     );
     return () => unsubscribe();
-  }, [user, currentMapId]); // 當 currentMapId 改變時，會重新監聽對應的資料
+  }, [user, currentMapId]); // 當 Map ID 改變時重新監聽
 
   useEffect(() => {
     const countries = Object.entries(COUNTRY_TRANSLATIONS).map(([key, value]) => ({
@@ -419,6 +476,7 @@ export default function TravelMapApp() {
     setLoading(true);
     setManual(false); 
 
+    // 1. 先檢查是否有預定義的城市清單 (包含北馬其頓)
     if (PREDEFINED_CITIES[country]) {
         const processedCities = PREDEFINED_CITIES[country].map(city => ({
             value: getDisplayCityName(city),
@@ -428,9 +486,10 @@ export default function TravelMapApp() {
         processedCities.sort((a, b) => a.label.localeCompare(b.label));
         setCities(processedCities);
         setLoading(false);
-        return; 
+        return; // 直接返回，不用去 Call API
     }
 
+    // 2. 如果沒有預定義，才嘗試 API
     try {
       const response = await fetch('https://countriesnow.space/api/v0.1/countries/cities', {
         method: 'POST',
@@ -502,7 +561,8 @@ export default function TravelMapApp() {
           originCity: initOriginCity, 
           originLat: initOriginLat, 
           originLng: initOriginLng,
-          destCountry: '', destCity: '', destLat: null, destLng: null,
+          destCountry: initDestCountry, 
+          destCity: '', destLat: null, destLng: null,
           dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
           transport: 'plane', cost: '', currency: 'EUR',
           transportNumber: '', seatNumber: '', seatType: 'window', notes: '',
@@ -656,7 +716,6 @@ export default function TravelMapApp() {
     let finalRoutePath = null;
     const transportType = TRANSPORT_TYPES[formData.transport];
     
-    // 確保路徑抓取邏輯
     if (transportType && transportType.useRoute && formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
         try {
             const url = `https://router.project-osrm.org/route/v1/driving/${formData.originLng},${formData.originLat};${formData.destLng},${formData.destLat}?overview=full&geometries=geojson`;
@@ -670,7 +729,7 @@ export default function TravelMapApp() {
     
     const finalData = { ...formData, routePath: finalRoutePath ? JSON.stringify(finalRoutePath) : null };
 
-    // 使用 SHARED_ID (動態取得) 存入資料
+    // 使用 currentMapId 存入資料
     try {
       if (editingId) {
         await updateDoc(doc(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips', editingId), { ...finalData, updatedAt: serverTimestamp() });
@@ -771,24 +830,6 @@ export default function TravelMapApp() {
             setExportDateRangeText('');
         }
     }, 500);
-  };
-
-  // Helper function to handle sharing
-  const handleShare = () => {
-      const url = window.location.href;
-      navigator.clipboard.writeText(url).then(() => {
-          alert(`網址已複製！傳送給朋友即可分享此地圖：\n${url}`);
-      });
-  };
-
-  // Helper function to switch map
-  const handleSwitchMap = () => {
-      const newMapId = prompt("請輸入新地圖的名稱 (ID)：\n(例如：amy-trip, japan-2025)", "");
-      if (newMapId) {
-          const url = new URL(window.location.href);
-          url.searchParams.set('map', newMapId);
-          window.location.href = url.toString();
-      }
   };
 
   const renderCityInput = (type) => {
@@ -898,10 +939,12 @@ export default function TravelMapApp() {
           <Globe className="w-6 h-6" />
           <div>
               <h1 className="text-xl font-bold tracking-wide">歐洲交換趴趴走</h1>
-              <div className="text-xs opacity-70 flex items-center gap-1">
-                  ID: <span className="font-mono bg-blue-800 px-1 rounded">{currentMapId}</span>
-                  <button onClick={handleShare} className="hover:text-yellow-300 ml-1" title="複製連結"><Share2 size={12}/></button>
-              </div>
+              {currentMapId && (
+                  <div className="text-xs opacity-70 flex items-center gap-1">
+                      ID: <span className="font-mono bg-blue-800 px-1 rounded">{currentMapId}</span>
+                      <button onClick={handleShare} className="hover:text-yellow-300 ml-1" title="複製連結"><Share2 size={12}/></button>
+                  </div>
+              )}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -1064,6 +1107,47 @@ export default function TravelMapApp() {
           </div>
         </div>
       </div>
+      
+      {/* ID 輸入 Modal */}
+      {isIdModalOpen && (
+          <div className="fixed inset-0 z-[3000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 animate-in fade-in zoom-in duration-300">
+              <div className="text-center mb-6">
+                <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+                  <Globe size={32} />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-800">歡迎使用旅行地圖</h2>
+                <p className="text-gray-500 mt-2 text-sm">請輸入一個專屬的 ID 來建立或讀取您的地圖</p>
+              </div>
+              
+              <form onSubmit={handleIdSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">地圖 ID (英文或數字)</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="例如: my-trip-2025"
+                    className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-0 text-lg outline-none transition-colors"
+                    value={tempMapIdInput}
+                    onChange={(e) => setTempMapIdInput(e.target.value)}
+                  />
+                </div>
+                <button 
+                  type="submit"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
+                >
+                  開始旅程 🚀
+                </button>
+              </form>
+              
+              <div className="mt-6 text-center">
+                <p className="text-xs text-gray-400">
+                  💡 提示：在不同裝置輸入同一個 ID，即可同步編輯地圖。
+                </p>
+              </div>
+            </div>
+          </div>
+      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-0 md:p-4">
