@@ -508,16 +508,22 @@ export default function TravelMapApp() {
     return () => unsubscribe();
   }, [user, currentMapId]); // 當 Map ID 改變時重新監聽
 
+  // ★★★ 修正：使用靜態翻譯資料庫生成國家列表，確保百分之百有中文 ★★★
   useEffect(() => {
     const countries = Object.entries(COUNTRY_TRANSLATIONS).map(([key, value]) => ({
-        name: key,
-        label: `${value} (${key})`
+        name: key, // 英文名作為 ID
+        label: `${value} (${key})` // 顯示名：中文 (英文)
     }));
+    
+    // 排序：台灣優先 > 匈牙利 > 英文 A-Z
     countries.sort((a, b) => {
         if (a.name === "Taiwan") return -1;
         if (b.name === "Taiwan") return 1;
+        if (a.name === "Hungary") return -1;
+        if (b.name === "Hungary") return 1;
         return a.name.localeCompare(b.name);
     });
+    
     setAllCountries(countries);
   }, []);
 
@@ -825,6 +831,13 @@ export default function TravelMapApp() {
 
   const performExport = async () => {
     if (!captureRef.current || !window.html2canvas || !mapInstanceRef.current) return;
+    // ★★★ 修正：如果未載入，嘗試載入或提示 ★★★
+    if (!window.html2canvas) {
+        // 重試載入邏輯 (略) 或簡單提示
+        alert("匯出元件尚未準備好，請稍後再試。");
+        return;
+    }
+    
     setIsExporting(true);
     setIsExportModalOpen(false);
     const map = mapInstanceRef.current;
