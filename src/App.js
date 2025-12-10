@@ -119,7 +119,6 @@ const CITY_TRANSLATIONS = {
 };
 
 // ★★★ 預設城市清單 (解決 API 缺漏問題) ★★★
-// 當選擇這些國家時，直接使用這裡的清單，不請求 API
 const PREDEFINED_CITIES = {
   "North Macedonia": ["Skopje", "Ohrid", "Bitola", "Kumanovo", "Prilep", "Tetovo", "Veles", "Stip", "Gostivar", "Strumica"],
   "Kosovo": ["Pristina", "Prizren", "Peja", "Gjakova", "Mitrovica"],
@@ -231,6 +230,9 @@ const TimeSelector = ({ value, onChange }) => {
   );
 };
 
+// -----------------------------------------------------------------------------
+// 4. 主應用程式元件
+// -----------------------------------------------------------------------------
 export default function TravelMapApp() {
   const [user, setUser] = useState(null);
   const [trips, setTrips] = useState([]);
@@ -266,13 +268,13 @@ export default function TravelMapApp() {
 
   // ★★★ ID & 密碼 相關狀態 ★★★
   const [currentMapId, setCurrentMapId] = useState('');
-  const [isIdModalOpen, setIsIdModalOpen] = useState(true); // 預設開啟 ID 輸入框
-  const [tempMapIdInput, setTempMapIdInput] = useState(''); // 輸入框的暫存值
-  const [tempPasswordInput, setTempPasswordInput] = useState(''); // 密碼輸入
+  const [isIdModalOpen, setIsIdModalOpen] = useState(true); 
+  const [tempMapIdInput, setTempMapIdInput] = useState(''); 
+  const [tempPasswordInput, setTempPasswordInput] = useState('');
   const [idMode, setIdMode] = useState('enter'); // 'enter' | 'create'
   const [idError, setIdError] = useState('');
   const [isCheckingId, setIsCheckingId] = useState(false);
-  const [showPassword, setShowPassword] = useState(false); // 顯示/隱藏密碼
+  const [showPassword, setShowPassword] = useState(false); 
   
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
@@ -308,7 +310,6 @@ export default function TravelMapApp() {
       const params = new URLSearchParams(window.location.search);
       const mapIdFromUrl = params.get('map');
       if (mapIdFromUrl) {
-          // 如果網址有 ID，先開啟輸入框並設定為「進入模式」
           setTempMapIdInput(mapIdFromUrl);
           setIdMode('enter');
           setIsIdModalOpen(true);
@@ -330,21 +331,17 @@ export default function TravelMapApp() {
 
       setIsCheckingId(true);
       
-      // 密碼存放路徑: artifacts/{appId}/users/{cleanId}/settings/auth
       const authDocRef = doc(db, 'artifacts', appId, 'users', cleanId, 'settings', 'auth');
 
       try {
           const authSnap = await getDoc(authDocRef);
 
           if (idMode === 'create') {
-              // --- 建立新地圖 ---
               if (authSnap.exists()) {
-                  // ID 已被使用 (有密碼設定)
                   setIdError("此 ID 已被使用，請更換一個");
                   setIsCheckingId(false);
                   return;
               } else {
-                  // 檢查是否有舊資料 (無密碼但有行程) - 簡單起見，有資料就算佔用
                   const tripQ = query(collection(db, 'artifacts', appId, 'users', cleanId, 'travel_trips'), limit(1));
                   const tripSnap = await getDocs(tripQ);
                   if (!tripSnap.empty) {
@@ -353,14 +350,12 @@ export default function TravelMapApp() {
                       return;
                   }
 
-                  // 建立新密碼
                   await setDoc(authDocRef, { 
                       password: password,
                       createdAt: serverTimestamp()
                   });
               }
           } else {
-              // --- 進入我的地圖 ---
               if (authSnap.exists()) {
                   const storedData = authSnap.data();
                   if (storedData.password !== password) {
@@ -369,7 +364,6 @@ export default function TravelMapApp() {
                       return;
                   }
               } else {
-                  // 如果沒有密碼檔 (可能是舊地圖)，檢查是否有行程
                   const tripQ = query(collection(db, 'artifacts', appId, 'users', cleanId, 'travel_trips'), limit(1));
                   const tripSnap = await getDocs(tripQ);
                   if (tripSnap.empty) {
@@ -377,11 +371,9 @@ export default function TravelMapApp() {
                        setIsCheckingId(false);
                        return;
                   }
-                  // 是舊地圖，允許進入
               }
           }
 
-          // 驗證通過
           setCurrentMapId(cleanId);
           setIsIdModalOpen(false);
           const newUrl = new URL(window.location.href);
@@ -408,7 +400,7 @@ export default function TravelMapApp() {
   const handleSwitchMap = () => {
       const confirmSwitch = window.confirm("確定要登出並切換地圖嗎？");
       if (confirmSwitch) {
-          window.location.reload(); // 最簡單的登出方式：重新整理
+          window.location.reload(); 
       }
   };
 
@@ -466,7 +458,7 @@ export default function TravelMapApp() {
 
   // ★★★ 監聽資料庫：只監聽當前 mapId ★★★
   useEffect(() => {
-    if (!user || !currentMapId) return; // 沒 ID 不動作
+    if (!user || !currentMapId) return; 
 
     const q = query(collection(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, 
@@ -504,15 +496,15 @@ export default function TravelMapApp() {
       }
     );
     return () => unsubscribe();
-  }, [user, currentMapId]); // 當 Map ID 改變時重新監聽
+  }, [user, currentMapId]); 
 
+  // ★★★ 修正排序：台灣優先 -> 匈牙利 -> 其他 ★★★
   useEffect(() => {
     const countries = Object.entries(COUNTRY_TRANSLATIONS).map(([key, value]) => ({
         name: key,
         label: `${value} (${key})`
     }));
     countries.sort((a, b) => {
-        // 修正排序：台灣 -> 匈牙利 -> 其他
         if (a.name === "Taiwan") return -1;
         if (b.name === "Taiwan") return 1;
         if (a.name === "Hungary") return -1;
@@ -545,7 +537,7 @@ export default function TravelMapApp() {
     setLoading(true);
     setManual(false); 
 
-    // 1. 先檢查是否有預定義的城市清單 (包含北馬其頓)
+    // 1. 先檢查是否有預定義的城市清單
     if (PREDEFINED_CITIES[country]) {
         const processedCities = PREDEFINED_CITIES[country].map(city => ({
             value: getDisplayCityName(city),
@@ -555,7 +547,7 @@ export default function TravelMapApp() {
         processedCities.sort((a, b) => a.label.localeCompare(b.label));
         setCities(processedCities);
         setLoading(false);
-        return; // 直接返回，不用去 Call API
+        return; 
     }
 
     // 2. 如果沒有預定義，才嘗試 API
@@ -662,7 +654,6 @@ export default function TravelMapApp() {
 
     if (geoJsonLayerRef.current) {
         const today = new Date().toISOString().split('T')[0];
-        // 只要行程是過去或進行中，相關國家都亮起
         const activeTrips = tripsToRender.filter(t => t.dateStart && t.dateStart <= today);
         const visitedCountries = new Set(activeTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
         
@@ -684,7 +675,6 @@ export default function TravelMapApp() {
         const isFutureOrNoDate = !trip.dateStart || trip.dateStart > today;
         let polyline;
         
-        // ★★★ 確保使用抓取到的路徑資料 ★★★
         if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
             polyline = L.polyline(trip.routePath, { color: typeConfig.color, weight: 3, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null }).addTo(map);
         } else {
@@ -787,7 +777,6 @@ export default function TravelMapApp() {
     let finalRoutePath = null;
     const transportType = TRANSPORT_TYPES[formData.transport];
     
-    // ★★★ 確保路徑抓取邏輯 (開車/火車/公車都抓) ★★★
     if (transportType && transportType.useRoute && formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
         try {
             const url = `https://router.project-osrm.org/route/v1/driving/${formData.originLng},${formData.originLat};${formData.destLng},${formData.destLat}?overview=full&geometries=geojson`;
@@ -801,7 +790,6 @@ export default function TravelMapApp() {
     
     const finalData = { ...formData, routePath: finalRoutePath ? JSON.stringify(finalRoutePath) : null };
 
-    // 使用 currentMapId 存入資料
     try {
       if (editingId) {
         await updateDoc(doc(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips', editingId), { ...finalData, updatedAt: serverTimestamp() });
@@ -824,14 +812,14 @@ export default function TravelMapApp() {
     catch (err) { console.error("Error deleting trip:", err); }
   };
 
+  // ★★★ 匯出功能修復：強制載入與錯誤處理 ★★★
   const performExport = async () => {
-    // 修正：若工具未載入，顯示警告並嘗試重試，而非靜默失敗
+    // 1. 如果工具還沒準備好，嘗試提示並返回
     if (!window.html2canvas) {
-        alert("截圖工具正在載入中，請稍候 3 秒再試！\n如果一直無法使用，請檢查網路連線。");
+        alert("匯出工具正在下載中，請稍等 3 秒後再試一次！");
         return;
     }
     
-    // 確保有地圖實例和 DOM 參照
     if (!captureRef.current || !mapInstanceRef.current) {
         alert("地圖尚未完全載入，請稍候。");
         return;
@@ -841,15 +829,11 @@ export default function TravelMapApp() {
     setIsExportModalOpen(false);
     const map = mapInstanceRef.current;
     
-    // 暫存地圖狀態
     const originalCenter = map.getCenter();
     const originalZoom = map.getZoom();
-    
-    // 隱藏不必要的控制項
     const controls = document.querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution');
     controls.forEach(el => el.style.display = 'none');
 
-    // 設定高解析度尺寸 (4:3)
     const originalStyle = {
         width: captureRef.current.style.width,
         height: captureRef.current.style.height,
@@ -866,7 +850,6 @@ export default function TravelMapApp() {
     captureRef.current.style.zIndex = '9999';
     map.invalidateSize();
 
-    // 篩選與縮放
     let filteredTrips = trips;
     if (exportMode === 'range' && exportStartDate && exportEndDate) {
         filteredTrips = trips.filter(t => t.dateStart >= exportStartDate && t.dateStart <= exportEndDate);
@@ -887,15 +870,17 @@ export default function TravelMapApp() {
     if (hasPoints && bounds.isValid()) map.fitBounds(bounds, { padding: [50, 50], animate: false });
     else map.setView([20, 0], 2, { animate: false });
 
-    // 延遲截圖
+    // 2. 延遲截圖：給地圖一點時間渲染
     setTimeout(async () => {
         try {
-            await new Promise(resolve => setTimeout(resolve, 1500)); // 增加等待時間確保地圖渲染
+            await new Promise(resolve => setTimeout(resolve, 1500)); 
+            
+            // 3. 強制使用 window.html2canvas 呼叫
             const canvas = await window.html2canvas(captureRef.current, { 
                 useCORS: true, 
-                allowTaint: true, 
+                // 4. 重要：移除 allowTaint，避免安全性錯誤阻擋下載
                 logging: false, 
-                scale: 1.5, 
+                scale: 2,  // 提升畫質
                 width: 1600, 
                 height: 1200, 
                 windowWidth: 1600, 
@@ -903,7 +888,7 @@ export default function TravelMapApp() {
             });
             
             canvas.toBlob((blob) => {
-                if (!blob) { alert("匯出失敗：無法產生圖片資料"); return; }
+                if (!blob) { alert("匯出失敗：無法產生圖片檔案"); return; }
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 const timestamp = new Date().toISOString().slice(0,10);
@@ -915,11 +900,12 @@ export default function TravelMapApp() {
                 document.body.removeChild(link);
                 URL.revokeObjectURL(url);
             }, 'image/png');
+
         } catch (err) { 
             console.error("Export failed:", err); 
-            alert(`匯出失敗: ${err.message || '未知錯誤'}`); 
+            alert(`匯出發生錯誤: ${err.message || '未知原因'}`); 
         } finally {
-            // 復原狀態
+            // 復原
             captureRef.current.style.width = originalStyle.width;
             captureRef.current.style.height = originalStyle.height;
             captureRef.current.style.position = originalStyle.position;
@@ -933,7 +919,7 @@ export default function TravelMapApp() {
             setIsExporting(false);
             setExportDateRangeText('');
         }
-    }, 500);
+    }, 1000);
   };
 
   const renderCityInput = (type) => {
@@ -1067,7 +1053,7 @@ export default function TravelMapApp() {
 
           <button 
             onClick={() => setIsExportModalOpen(true)}
-            disabled={!libLoaded || isExporting}
+            disabled={isExporting} // 現在只看是否正在匯出，不看 libLoaded 以避免誤判
             className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-blue-600"
             title="匯出地圖圖片"
           >
@@ -1212,7 +1198,7 @@ export default function TravelMapApp() {
         </div>
       </div>
       
-      {/* ID 輸入 Modal - 分頁設計 */}
+      {/* ID 輸入 Modal */}
       {isIdModalOpen && (
           <div className="fixed inset-0 z-[3000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
