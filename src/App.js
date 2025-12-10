@@ -829,140 +829,185 @@ export default function TravelMapApp() {
     catch (err) { console.error("Error deleting trip:", err); }
   };
 
-  // ★★★ 匯出功能修復：強制載入與錯誤處理 ★★★
-  const handleExport = async () => {
-      // 1. 如果工具還沒準備好，嘗試提示並返回
-      if (!window.html2canvas) {
-          // 強制重試一次載入
-          const script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-          script.onload = () => {
-            alert("截圖工具已下載完成，請再按一次匯出按鈕！");
-          };
-          document.body.appendChild(script);
-          alert("正在下載截圖工具，請稍等 3 秒後再按一次...");
-          return;
-      }
+  // Replace existing handleExport with this improved version
+const handleExport = async () => {
+  // 檢查 html2canvas
+  if (!window.html2canvas) {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    script.onload = () => alert("截圖工具已下載完成，請再按一次匯出按鈕！");
+    document.body.appendChild(script);
+    alert("正在下載截圖工具，請稍等 3 秒後再按一次...");
+    return;
+  }
+  if (!captureRef.current || !mapInstanceRef.current) {
+    alert("錯誤：找不到地圖或畫面容器，請重新整理網頁。");
+    return;
+  }
 
-      if (!captureRef.current) {
-          alert("錯誤：找不到地圖畫面，請重新整理網頁。");
-          return;
-      }
+  setIsExporting(true);
+  setIsExportModalOpen(false);
 
-      setIsExporting(true);
-      setIsExportModalOpen(false);
+  const map = mapInstanceRef.current;
+  const originalCenter = map.getCenter();
+  const originalZoom = map.getZoom();
 
-      // 1. 鎖定地圖狀態，隱藏控制項
-      const map = mapInstanceRef.current;
-      const originalCenter = map.getCenter();
-      const originalZoom = map.getZoom();
-      
-      const controls = document.querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution');
-      controls.forEach(el => el.style.display = 'none');
+  // 隱藏 leaflet 的控制元件（用 class 控制，方便還原）
+  const CONTROL_HIDE_CLASS = '___export-hide';
+  const addHideTo = (el) => el && el.classList && el.classList.add(CONTROL_HIDE_CLASS);
 
-      // 2. 設定匯出尺寸 (4:3)
-      const originalStyle = {
-          width: captureRef.current.style.width,
-          height: captureRef.current.style.height,
-          position: captureRef.current.style.position,
-          top: captureRef.current.style.top,
-          left: captureRef.current.style.left,
-          zIndex: captureRef.current.style.zIndex,
-      };
+  const controls = document.querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution, .leaflet-control-layers, .leaflet-control-scale');
+  controls.forEach(el => addHideTo(el));
 
-      captureRef.current.style.width = '1600px';
-      captureRef.current.style.height = '1200px';
-      captureRef.current.style.position = 'fixed';
-      captureRef.current.style.top = '0';
-      captureRef.current.style.left = '0';
-      captureRef.current.style.zIndex = '9999';
-      map.invalidateSize();
+  // 加一個短期 CSS，確保 .___export-hide 在截圖時隱藏
+  let tempStyle = document.getElementById('export-temp-style');
+  if (!tempStyle) {
+    tempStyle = document.createElement('style');
+    tempStyle.id = 'export-temp-style';
+    tempStyle.innerHTML = `
+      .${CONTROL_HIDE_CLASS} { display: none !important; opacity: 0 !important; pointer-events: none !important; }
+      /* 隱藏 Leaflet attribution 右下的文字（以防其他 class 名稱）*/
+      .leaflet-control .leaflet-control-attribution { display: none !important; }
+    `;
+    document.head.appendChild(tempStyle);
+  }
 
-      // 3. 篩選資料 & 自動縮放 (Auto-Fit)
-      let filteredTrips = trips;
-      if (exportMode === 'range' && exportStartDate && exportEndDate) {
-          filteredTrips = trips.filter(t => t.dateStart >= exportStartDate && t.dateStart <= exportEndDate);
-          setExportDateRangeText(`${exportStartDate} ~ ${exportEndDate}`);
-      } else {
-          // 如果全部日期，找出最早和最晚
-          const dates = filteredTrips.map(t => t.dateStart).filter(Boolean).sort();
-          if (dates.length > 0) {
-              setExportDateRangeText(`${dates[0]} ~ ${dates[dates.length - 1]}`);
-          } else {
-              setExportDateRangeText('不限日期');
-          }
-      }
-
-      renderMapLayers(filteredTrips);
-
-      // 自動縮放邏輯
-      const bounds = window.L.latLngBounds([]);
-      let hasPoints = false;
-      filteredTrips.forEach(t => {
-          if (t.originLat && t.originLng) { bounds.extend([t.originLat, t.originLng]); hasPoints = true; }
-          if (t.destLat && t.destLng) { bounds.extend([t.destLat, t.destLng]); hasPoints = true; }
-          // 如果有路徑，也要納入範圍
-          if (t.routePath) {
-             const path = typeof t.routePath === 'string' ? JSON.parse(t.routePath) : t.routePath;
-             if (Array.isArray(path)) path.forEach(p => bounds.extend(p));
-          }
-      });
-
-      if (hasPoints && bounds.isValid()) {
-          map.fitBounds(bounds, { padding: [50, 50], animate: false });
-      } else {
-          map.setView([20, 0], 2, { animate: false }); // 沒資料就看世界地圖
-      }
-
-      // 4. 截圖
-      setTimeout(async () => {
-          try {
-              await new Promise(resolve => setTimeout(resolve, 1500)); // 等地圖渲染
-              const canvas = await window.html2canvas(captureRef.current, {
-                  useCORS: true,       // 允許跨域圖片 (地圖瓦片)
-                  allowTaint: false,   // 關閉汙染 (關鍵修正)
-                  logging: false,
-                  scale: 2,            // 2倍解析度
-                  width: 1600,
-                  height: 1200,
-                  windowWidth: 1600,
-                  windowHeight: 1200
-              });
-
-              // 轉存下載
-              canvas.toBlob((blob) => {
-                  if (!blob) throw new Error("Canvas is empty");
-                  const url = URL.createObjectURL(blob);
-                  const link = document.createElement('a');
-                  link.download = `travel-map-${new Date().toISOString().slice(0,10)}.png`;
-                  link.href = url;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  URL.revokeObjectURL(url);
-              }, 'image/png');
-
-          } catch (err) {
-              console.error(err);
-              alert("匯出失敗，請檢查網路連線或稍後再試。");
-          } finally {
-              // 5. 復原畫面
-              captureRef.current.style.width = originalStyle.width;
-              captureRef.current.style.height = originalStyle.height;
-              captureRef.current.style.position = originalStyle.position;
-              captureRef.current.style.top = originalStyle.top;
-              captureRef.current.style.left = originalStyle.left;
-              captureRef.current.style.zIndex = originalStyle.zIndex;
-              
-              controls.forEach(el => el.style.display = '');
-              map.invalidateSize();
-              map.setView(originalCenter, originalZoom, { animate: false });
-              renderMapLayers(trips); // 恢復顯示所有行程
-              setIsExporting(false);
-              setExportDateRangeText('');
-          }
-      }, 1000);
+  // 調整 capture 區塊 (4:3)
+  const containerEl = captureRef.current;
+  const originalStyle = {
+    width: containerEl.style.width || '',
+    height: containerEl.style.height || '',
+    position: containerEl.style.position || '',
+    top: containerEl.style.top || '',
+    left: containerEl.style.left || '',
+    zIndex: containerEl.style.zIndex || ''
   };
+
+  containerEl.style.position = 'fixed';
+  containerEl.style.top = '0';
+  containerEl.style.left = '0';
+  containerEl.style.width = '1600px';
+  containerEl.style.height = '1200px';
+  containerEl.style.zIndex = '9999';
+
+  // 先設定要匯出的資料與日期文字
+  let filteredTrips = trips;
+  if (exportMode === 'range' && exportStartDate && exportEndDate) {
+    filteredTrips = trips.filter(t => t.dateStart >= exportStartDate && t.dateStart <= exportEndDate);
+    setExportDateRangeText(`${exportStartDate} ~ ${exportEndDate}`);
+  } else {
+    const dates = filteredTrips.map(t => t.dateStart).filter(Boolean).sort();
+    if (dates.length > 0) setExportDateRangeText(`${dates[0]} ~ ${dates[dates.length - 1]}`);
+    else setExportDateRangeText('不限日期');
+  }
+
+  // 重新畫圖層（只畫需要的行程）
+  renderMapLayers(filteredTrips);
+
+  // 自動放大範圍 (fitBounds) — 請在 fitBounds 後等 map 的 moveend
+  const bounds = window.L.latLngBounds([]);
+  let hasPoints = false;
+  filteredTrips.forEach(t => {
+    if (t.originLat && t.originLng) { bounds.extend([t.originLat, t.originLng]); hasPoints = true; }
+    if (t.destLat && t.destLng) { bounds.extend([t.destLat, t.destLng]); hasPoints = true; }
+    if (t.routePath) {
+      const path = typeof t.routePath === 'string' ? JSON.parse(t.routePath) : t.routePath;
+      if (Array.isArray(path)) path.forEach(p => bounds.extend(p));
+    }
+  });
+
+  if (hasPoints && bounds.isValid()) {
+    map.fitBounds(bounds, { padding: [50, 50], animate: false });
+  } else {
+    map.setView([20, 0], 2, { animate: false });
+  }
+
+  // *** 關鍵：確保所有 tile image 都有 crossOrigin='anonymous' 屬性（html2canvas 需要）
+  // 這會嘗試為已存在的 tiles 加上 crossOrigin 屬性（必須 server 也允許 CORS，否則仍會失敗）
+  const tileEls = Array.from(document.querySelectorAll('.leaflet-tile'));
+  tileEls.forEach(img => {
+    try { img.setAttribute('crossorigin', 'anonymous'); } catch (e) { /* ignore */ }
+  });
+
+  // 等待地圖重繪/tiles 載入完成
+  const waitForMapIdle = () => new Promise((resolve) => {
+    // 等 'moveend' 與 'load' 事件
+    let moved = false, loaded = false;
+    const tryResolve = () => { if (moved && loaded) resolve(); };
+
+    const onMoveEnd = () => { moved = true; tryResolve(); map.off('moveend', onMoveEnd); };
+    const onLayerLoad = () => { loaded = true; tryResolve(); map.off('layerload', onLayerLoad); };
+
+    map.on('moveend', onMoveEnd);
+    map.on('layerload', onLayerLoad);
+
+    // 最長等待 3 秒為上限（避免無限等待）
+    setTimeout(() => { try { map.off('moveend', onMoveEnd); map.off('layerload', onLayerLoad); } catch(e){}; resolve(); }, 3000);
+  });
+
+  try {
+    await waitForMapIdle();
+    // 再次 force redraw
+    map.invalidateSize();
+
+    // 確保上方 header / 圖例已切換成 isExporting 模式（你原本用 isExporting 來在 captureRef 裡顯示標頭）
+    await new Promise(r => setTimeout(r, 800)); // 等 0.8s 再截圖（讓 tiles 與樣式穩定）
+
+    // html2canvas 的選項：scale 2 提升解析度
+    const canvas = await window.html2canvas(containerEl, {
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      scale: 2,
+      width: 1600,
+      height: 1200,
+      windowWidth: 1600,
+      windowHeight: 1200,
+    });
+
+    // 轉檔並下載
+    await new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) return reject(new Error('Canvas empty'));
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `travel-map-${new Date().toISOString().slice(0,10)}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        resolve();
+      }, 'image/png');
+    });
+
+  } catch (err) {
+    console.error('Export error:', err);
+    alert("匯出失敗：可能是地圖瓦片跨域(CORS)被阻擋或 tiles 尚未完全載入。若仍失敗請改用支援 CORS 的圖資或啟用伺服端代理。");
+  } finally {
+    // 還原畫面
+    containerEl.style.width = originalStyle.width;
+    containerEl.style.height = originalStyle.height;
+    containerEl.style.position = originalStyle.position;
+    containerEl.style.top = originalStyle.top;
+    containerEl.style.left = originalStyle.left;
+    containerEl.style.zIndex = originalStyle.zIndex;
+
+    // remove hide class and temp style
+    controls.forEach(el => el.classList.remove(CONTROL_HIDE_CLASS));
+    if (tempStyle && tempStyle.parentNode) tempStyle.parentNode.removeChild(tempStyle);
+
+    // restore map view and layers
+    try {
+      map.invalidateSize();
+      map.setView(originalCenter, originalZoom, { animate: false });
+    } catch(e){ console.warn('restore map view failed', e); }
+    renderMapLayers(trips);
+    setIsExporting(false);
+    setExportDateRangeText('');
+  }
+};
+
 
   const renderCityInput = (type) => {
     const isOrigin = type === 'origin';
