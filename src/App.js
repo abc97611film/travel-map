@@ -29,12 +29,24 @@ try {
 const appId = 'travel-map-v1'; 
 
 // -----------------------------------------------------------------------------
-// 2. 翻譯資料庫 (繁體中文 - 台灣慣用語) - 終極完整版
+// 2. 翻譯資料庫 (繁體中文 - 台灣慣用語)
 // -----------------------------------------------------------------------------
 const COUNTRY_TRANSLATIONS = {
-  // === 亞洲 (Asia) ===
-  "Taiwan": "台灣", "Japan": "日本", "South Korea": "韓國", "Korea, South": "韓國", "China": "中國",
-  "Hong Kong": "香港", "Macao": "澳門", "Singapore": "新加坡", "Malaysia": "馬來西亞",
+  "Taiwan": "台灣", "Japan": "日本", "South Korea": "韓國", "China": "中國",
+  "Hong Kong": "香港", "Macao": "澳門", "North Macedonia": "北馬其頓",
+  "France": "法國", "Germany": "德國", "United Kingdom": "英國", "Italy": "義大利", 
+  "Spain": "西班牙", "Netherlands": "荷蘭", "Belgium": "比利時", "Switzerland": "瑞士",
+  "Austria": "奧地利", "Czech Republic": "捷克", "Poland": "波蘭", "Hungary": "匈牙利",
+  "Portugal": "葡萄牙", "Greece": "希臘", "Sweden": "瑞典", "Norway": "挪威",
+  "Finland": "芬蘭", "Denmark": "丹麥", "Ireland": "愛爾蘭", "Iceland": "冰島",
+  "Luxembourg": "盧森堡", "Monaco": "摩納哥", "Vatican City": "梵蒂岡", "Liechtenstein": "列支敦斯登",
+  "Malta": "馬爾他", "Cyprus": "賽普勒斯", "Estonia": "愛沙尼亞", "Latvia": "拉脫維亞",
+  "Lithuania": "立陶宛", "Slovakia": "斯洛伐克", "Slovenia": "斯洛維尼亞", "Croatia": "克羅埃西亞",
+  "Romania": "羅馬尼亞", "Bulgaria": "保加利亞", "Serbia": "塞爾維亞", "Bosnia and Herzegovina": "波士尼亞與赫塞哥維納",
+  "Ukraine": "烏克蘭", "Russia": "俄羅斯", "Turkey": "土耳其", 
+  "Albania": "阿爾巴尼亞", "Montenegro": "蒙特內哥羅", "Kosovo": "科索沃",
+  "United States": "美國", "Canada": "加拿大", "Australia": "澳洲", "New Zealand": "紐西蘭",
+  "Egypt": "埃及", "Morocco": "摩洛哥", "Singapore": "新加坡", "Malaysia": "馬來西亞",
   "Thailand": "泰國", "Vietnam": "越南", "Philippines": "菲律賓", "Indonesia": "印尼",
   "India": "印度", "Cambodia": "柬埔寨", "Myanmar": "緬甸", "Laos": "寮國",
   "Mongolia": "蒙古", "Nepal": "尼泊爾", "Sri Lanka": "斯里蘭卡", "Maldives": "馬爾地夫",
@@ -42,52 +54,26 @@ const COUNTRY_TRANSLATIONS = {
   "Pakistan": "巴基斯坦", "Afghanistan": "阿富汗",
   "Kazakhstan": "哈薩克", "Uzbekistan": "烏茲別克", "Turkmenistan": "土庫曼", 
   "Kyrgyzstan": "吉爾吉斯", "Tajikistan": "塔吉克",
-
-  // === 歐洲 (Europe) - 包含所有微型國家與屬地 ===
-  "Albania": "阿爾巴尼亞", "Andorra": "安道爾", "Armenia": "亞美尼亞", "Austria": "奧地利", 
-  "Azerbaijan": "亞塞拜然", "Belarus": "白俄羅斯", "Belgium": "比利時", 
-  "Bosnia and Herzegovina": "波士尼亞與赫塞哥維納", "Bulgaria": "保加利亞", 
-  "Croatia": "克羅埃西亞", "Cyprus": "賽普勒斯", "Czech Republic": "捷克", 
-  "Denmark": "丹麥", "Estonia": "愛沙尼亞", "Faroe Islands": "法羅群島", 
-  "Finland": "芬蘭", "France": "法國", "Georgia": "喬治亞", "Germany": "德國", 
-  "Gibraltar": "直布羅陀", "Greece": "希臘", "Hungary": "匈牙利", "Iceland": "冰島", 
-  "Ireland": "愛爾蘭", "Italy": "義大利", "Kosovo": "科索沃", "Latvia": "拉脫維亞", 
-  "Liechtenstein": "列支敦斯登", "Lithuania": "立陶宛", "Luxembourg": "盧森堡", 
-  "Malta": "馬爾他", "Moldova": "摩爾多瓦", "Monaco": "摩納哥", "Montenegro": "蒙特內哥羅", 
-  "Netherlands": "荷蘭", "North Macedonia": "北馬其頓", "Norway": "挪威", "Poland": "波蘭", 
-  "Portugal": "葡萄牙", "Romania": "羅馬尼亞", "Russia": "俄羅斯", "San Marino": "聖馬利諾", 
-  "Serbia": "塞爾維亞", "Slovakia": "斯洛伐克", "Slovenia": "斯洛維尼亞", "Spain": "西班牙", 
-  "Sweden": "瑞典", "Switzerland": "瑞士", "Turkey": "土耳其", "Ukraine": "烏克蘭", 
-  "United Kingdom": "英國", "Vatican City": "梵蒂岡", "Jersey": "澤西島", "Guernsey": "根西島",
-  "Isle of Man": "曼島",
-
-  // === 中東與北非 (MENA) ===
-  "Algeria": "阿爾及利亞", "Bahrain": "巴林", "Egypt": "埃及", "Iran": "伊朗", "Iraq": "伊拉克", 
-  "Israel": "以色列", "Jordan": "約旦", "Kuwait": "科威特", "Lebanon": "黎巴嫩", "Libya": "利比亞", 
-  "Morocco": "摩洛哥", "Oman": "阿曼", "Palestine": "巴勒斯坦", "Qatar": "卡達", 
-  "Saudi Arabia": "沙烏地阿拉伯", "Syria": "敘利亞", "Tunisia": "突尼西亞", 
-  "United Arab Emirates": "阿拉伯聯合大公國", "Yemen": "葉門", "Western Sahara": "西撒哈拉",
-
-  // === 美洲 (Americas) ===
-  "United States": "美國", "Canada": "加拿大", "Mexico": "墨西哥", "Brazil": "巴西", 
-  "Argentina": "阿根廷", "Chile": "智利", "Peru": "秘魯", "Colombia": "哥倫比亞",
+  "Andorra": "安道爾", "San Marino": "聖馬利諾", "Belarus": "白俄羅斯", "Moldova": "摩爾多瓦",
+  "Mexico": "墨西哥", "Brazil": "巴西", "Argentina": "阿根廷", "Chile": "智利", "Peru": "秘魯", "Colombia": "哥倫比亞",
   "Bolivia": "玻利維亞", "Ecuador": "厄瓜多", "Paraguay": "巴拉圭", "Uruguay": "烏拉圭",
   "Venezuela": "委內瑞拉", "Cuba": "古巴", "Jamaica": "牙買加", "Costa Rica": "哥斯大黎加",
   "Panama": "巴拿馬", "Bahamas": "巴哈馬", "Dominican Republic": "多明尼加", "Haiti": "海地",
   "Belize": "貝里斯", "Guatemala": "瓜地馬拉", "Honduras": "宏都拉斯", "El Salvador": "薩爾瓦多",
   "Nicaragua": "尼加拉瓜",
-
-  // === 大洋洲 (Oceania) ===
-  "Australia": "澳洲", "New Zealand": "紐西蘭", "Fiji": "斐濟", "Palau": "帛琉", "Guam": "關島",
+  "Fiji": "斐濟", "Palau": "帛琉", "Guam": "關島",
   "Papua New Guinea": "巴布亞紐幾內亞", "Solomon Islands": "索羅門群島", "Vanuatu": "萬那杜",
-
-  // === 非洲其他 (Sub-Saharan Africa) ===
   "South Africa": "南非", "Kenya": "肯亞", "Tanzania": "坦尚尼亞", "Ethiopia": "衣索比亞", 
-  "Nigeria": "奈及利亞", "Ghana": "迦納", "Madagascar": "馬達加斯加", "Sudan": "蘇丹"
+  "Nigeria": "奈及利亞", "Ghana": "迦納", "Madagascar": "馬達加斯加", "Sudan": "蘇丹",
+  "Algeria": "阿爾及利亞", "Bahrain": "巴林", "Iran": "伊朗", "Iraq": "伊拉克", 
+  "Israel": "以色列", "Jordan": "約旦", "Kuwait": "科威特", "Lebanon": "黎巴嫩", "Libya": "利比亞", 
+  "Oman": "阿曼", "Palestine": "巴勒斯坦", "Qatar": "卡達", 
+  "Saudi Arabia": "沙烏地阿拉伯", "Syria": "敘利亞", "Tunisia": "突尼西亞", 
+  "United Arab Emirates": "阿拉伯聯合大公國", "Yemen": "葉門", "Western Sahara": "西撒哈拉"
 };
 
 const CITY_TRANSLATIONS = {
-  // 北馬其頓 (North Macedonia)
+  // 北馬其頓
   "Skopje": "史科普耶", "Ohrid": "奧赫里德", "Bitola": "比托拉", "Kumanovo": "庫馬諾沃", 
   "Prilep": "普里萊普", "Tetovo": "泰托沃", "Veles": "韋萊斯", "Stip": "什蒂普", 
   "Gostivar": "戈斯蒂瓦爾", "Strumica": "斯特魯米察", "Kavadarci": "卡瓦達爾奇",
@@ -95,7 +81,7 @@ const CITY_TRANSLATIONS = {
   // 台灣
   "Taipei": "台北", "Kaohsiung": "高雄", "Taichung": "台中", "Tainan": "台南", "Taoyuan": "桃園", "Hsinchu": "新竹",
   
-  // 歐洲熱門
+  // 歐洲
   "Paris": "巴黎", "Lyon": "里昂", "Nice": "尼斯", "Marseille": "馬賽",
   "Berlin": "柏林", "Munich": "慕尼黑", "Frankfurt": "法蘭克福", "Hamburg": "漢堡",
   "London": "倫敦", "Edinburgh": "愛丁堡", "Manchester": "曼徹斯特", "Liverpool": "利物浦",
@@ -104,21 +90,11 @@ const CITY_TRANSLATIONS = {
   "Amsterdam": "阿姆斯特丹", "Rotterdam": "鹿特丹", "Brussels": "布魯塞爾", "Bruges": "布魯日",
   "Zurich": "蘇黎世", "Geneva": "日內瓦", "Vienna": "維也納", "Salzburg": "薩爾斯堡", "Hallstatt": "哈爾施塔特",
   "Prague": "布拉格", "Cesky Krumlov": "庫倫洛夫", "Budapest": "布達佩斯", "Warsaw": "華沙", "Krakow": "克拉科夫",
-  "Stockholm": "斯德哥爾摩", "Copenhagen": "哥本哈根", "Oslo": "奧斯陸", "Helsinki": "赫爾辛基", "Reykjavik": "雷克雅維克",
-  "Athens": "雅典", "Santorini": "聖托里尼", "Mykonos": "米克諾斯",
-  "Istanbul": "伊斯坦堡", "Cappadocia": "卡帕多奇亞", "Ankara": "安卡拉",
-  "Lisbon": "里斯本", "Porto": "波多",
-  "Dubrovnik": "杜布羅夫尼克", "Split": "斯普利特", "Zagreb": "札格瑞布", "Ljubljana": "盧布爾雅那", "Bled": "布萊德",
-  "Sarajevo": "塞拉耶佛", "Mostar": "莫斯塔爾", "Belgrade": "貝爾格勒", "Bucharest": "布加勒斯特", "Sofia": "索菲亞",
-  "Tirana": "地拉那", "Kotor": "科托爾", "Podgorica": "波德戈里察", "Pristina": "普里斯提納",
-  
-  // 亞洲/其他
-  "Tokyo": "東京", "Osaka": "大阪", "Kyoto": "京都", "Seoul": "首爾", "Busan": "釜山",
-  "Bangkok": "曼谷", "Chiang Mai": "清邁", "Singapore": "新加坡", "Hong Kong": "香港", "Macao": "澳門",
-  "New York": "紐約", "Los Angeles": "洛杉磯", "Sydney": "雪梨", "Melbourne": "墨爾本"
+  "Stockholm": "斯德哥爾摩", "Copenhagen": "哥本哈根", "Oslo": "奧斯陸", "Helsinki": "赫爾辛基", "Athens": "雅典",
+  "New York": "紐約", "Los Angeles": "洛杉磯", "San Francisco": "舊金山", "Toronto": "多倫多", "Vancouver": "溫哥華",
+  "Sydney": "雪梨", "Melbourne": "墨爾本", "Bangkok": "曼谷", "Singapore": "新加坡"
 };
 
-// ★★★ 預設城市清單 (解決 API 缺漏問題) ★★★
 const PREDEFINED_CITIES = {
   "North Macedonia": ["Skopje", "Ohrid", "Bitola", "Kumanovo", "Prilep", "Tetovo", "Veles", "Stip", "Gostivar", "Strumica"],
   "Kosovo": ["Pristina", "Prizren", "Peja", "Gjakova", "Mitrovica"],
@@ -829,185 +805,140 @@ export default function TravelMapApp() {
     catch (err) { console.error("Error deleting trip:", err); }
   };
 
-  // Replace existing handleExport with this improved version
-const handleExport = async () => {
-  // 檢查 html2canvas
-  if (!window.html2canvas) {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    script.onload = () => alert("截圖工具已下載完成，請再按一次匯出按鈕！");
-    document.body.appendChild(script);
-    alert("正在下載截圖工具，請稍等 3 秒後再按一次...");
-    return;
-  }
-  if (!captureRef.current || !mapInstanceRef.current) {
-    alert("錯誤：找不到地圖或畫面容器，請重新整理網頁。");
-    return;
-  }
-
-  setIsExporting(true);
-  setIsExportModalOpen(false);
-
-  const map = mapInstanceRef.current;
-  const originalCenter = map.getCenter();
-  const originalZoom = map.getZoom();
-
-  // 隱藏 leaflet 的控制元件（用 class 控制，方便還原）
-  const CONTROL_HIDE_CLASS = '___export-hide';
-  const addHideTo = (el) => el && el.classList && el.classList.add(CONTROL_HIDE_CLASS);
-
-  const controls = document.querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution, .leaflet-control-layers, .leaflet-control-scale');
-  controls.forEach(el => addHideTo(el));
-
-  // 加一個短期 CSS，確保 .___export-hide 在截圖時隱藏
-  let tempStyle = document.getElementById('export-temp-style');
-  if (!tempStyle) {
-    tempStyle = document.createElement('style');
-    tempStyle.id = 'export-temp-style';
-    tempStyle.innerHTML = `
-      .${CONTROL_HIDE_CLASS} { display: none !important; opacity: 0 !important; pointer-events: none !important; }
-      /* 隱藏 Leaflet attribution 右下的文字（以防其他 class 名稱）*/
-      .leaflet-control .leaflet-control-attribution { display: none !important; }
-    `;
-    document.head.appendChild(tempStyle);
-  }
-
-  // 調整 capture 區塊 (4:3)
-  const containerEl = captureRef.current;
-  const originalStyle = {
-    width: containerEl.style.width || '',
-    height: containerEl.style.height || '',
-    position: containerEl.style.position || '',
-    top: containerEl.style.top || '',
-    left: containerEl.style.left || '',
-    zIndex: containerEl.style.zIndex || ''
-  };
-
-  containerEl.style.position = 'fixed';
-  containerEl.style.top = '0';
-  containerEl.style.left = '0';
-  containerEl.style.width = '1600px';
-  containerEl.style.height = '1200px';
-  containerEl.style.zIndex = '9999';
-
-  // 先設定要匯出的資料與日期文字
-  let filteredTrips = trips;
-  if (exportMode === 'range' && exportStartDate && exportEndDate) {
-    filteredTrips = trips.filter(t => t.dateStart >= exportStartDate && t.dateStart <= exportEndDate);
-    setExportDateRangeText(`${exportStartDate} ~ ${exportEndDate}`);
-  } else {
-    const dates = filteredTrips.map(t => t.dateStart).filter(Boolean).sort();
-    if (dates.length > 0) setExportDateRangeText(`${dates[0]} ~ ${dates[dates.length - 1]}`);
-    else setExportDateRangeText('不限日期');
-  }
-
-  // 重新畫圖層（只畫需要的行程）
-  renderMapLayers(filteredTrips);
-
-  // 自動放大範圍 (fitBounds) — 請在 fitBounds 後等 map 的 moveend
-  const bounds = window.L.latLngBounds([]);
-  let hasPoints = false;
-  filteredTrips.forEach(t => {
-    if (t.originLat && t.originLng) { bounds.extend([t.originLat, t.originLng]); hasPoints = true; }
-    if (t.destLat && t.destLng) { bounds.extend([t.destLat, t.destLng]); hasPoints = true; }
-    if (t.routePath) {
-      const path = typeof t.routePath === 'string' ? JSON.parse(t.routePath) : t.routePath;
-      if (Array.isArray(path)) path.forEach(p => bounds.extend(p));
+  // ★★★ 匯出功能修復：強制載入與錯誤處理 (FINAL FIX) ★★★
+  const performExport = async () => {
+    // 1. 如果工具還沒準備好，嘗試提示並返回
+    if (!window.html2canvas) {
+        // 強制重試一次載入
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        script.onload = () => {
+          alert("截圖工具已下載完成，請再按一次匯出按鈕！");
+        };
+        document.body.appendChild(script);
+        alert("正在下載截圖工具，請稍等 3 秒後再按一次...");
+        return;
     }
-  });
 
-  if (hasPoints && bounds.isValid()) {
-    map.fitBounds(bounds, { padding: [50, 50], animate: false });
-  } else {
-    map.setView([20, 0], 2, { animate: false });
-  }
+    if (!captureRef.current) {
+        alert("錯誤：找不到地圖畫面，請重新整理網頁。");
+        return;
+    }
 
-  // *** 關鍵：確保所有 tile image 都有 crossOrigin='anonymous' 屬性（html2canvas 需要）
-  // 這會嘗試為已存在的 tiles 加上 crossOrigin 屬性（必須 server 也允許 CORS，否則仍會失敗）
-  const tileEls = Array.from(document.querySelectorAll('.leaflet-tile'));
-  tileEls.forEach(img => {
-    try { img.setAttribute('crossorigin', 'anonymous'); } catch (e) { /* ignore */ }
-  });
+    setIsExporting(true);
+    setIsExportModalOpen(false);
 
-  // 等待地圖重繪/tiles 載入完成
-  const waitForMapIdle = () => new Promise((resolve) => {
-    // 等 'moveend' 與 'load' 事件
-    let moved = false, loaded = false;
-    const tryResolve = () => { if (moved && loaded) resolve(); };
+    // 1. 鎖定地圖狀態，隱藏控制項
+    const map = mapInstanceRef.current;
+    const originalCenter = map.getCenter();
+    const originalZoom = map.getZoom();
+    
+    const controls = document.querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution');
+    controls.forEach(el => el.style.display = 'none');
 
-    const onMoveEnd = () => { moved = true; tryResolve(); map.off('moveend', onMoveEnd); };
-    const onLayerLoad = () => { loaded = true; tryResolve(); map.off('layerload', onLayerLoad); };
+    // 2. 設定匯出尺寸 (4:3)
+    const originalStyle = {
+        width: captureRef.current.style.width,
+        height: captureRef.current.style.height,
+        position: captureRef.current.style.position,
+        top: captureRef.current.style.top,
+        left: captureRef.current.style.left,
+        zIndex: captureRef.current.style.zIndex,
+    };
 
-    map.on('moveend', onMoveEnd);
-    map.on('layerload', onLayerLoad);
-
-    // 最長等待 3 秒為上限（避免無限等待）
-    setTimeout(() => { try { map.off('moveend', onMoveEnd); map.off('layerload', onLayerLoad); } catch(e){}; resolve(); }, 3000);
-  });
-
-  try {
-    await waitForMapIdle();
-    // 再次 force redraw
+    captureRef.current.style.width = '1600px';
+    captureRef.current.style.height = '1200px';
+    captureRef.current.style.position = 'fixed';
+    captureRef.current.style.top = '0';
+    captureRef.current.style.left = '0';
+    captureRef.current.style.zIndex = '9999';
     map.invalidateSize();
 
-    // 確保上方 header / 圖例已切換成 isExporting 模式（你原本用 isExporting 來在 captureRef 裡顯示標頭）
-    await new Promise(r => setTimeout(r, 800)); // 等 0.8s 再截圖（讓 tiles 與樣式穩定）
+    // 3. 篩選資料 & 自動縮放 (Auto-Fit)
+    let filteredTrips = trips;
+    if (exportMode === 'range' && exportStartDate && exportEndDate) {
+        filteredTrips = trips.filter(t => t.dateStart >= exportStartDate && t.dateStart <= exportEndDate);
+        setExportDateRangeText(`${exportStartDate} ~ ${exportEndDate}`);
+    } else {
+        // 如果全部日期，找出最早和最晚
+        const dates = filteredTrips.map(t => t.dateStart).filter(Boolean).sort();
+        if (dates.length > 0) {
+            setExportDateRangeText(`${dates[0]} ~ ${dates[dates.length - 1]}`);
+        } else {
+            setExportDateRangeText('不限日期');
+        }
+    }
 
-    // html2canvas 的選項：scale 2 提升解析度
-    const canvas = await window.html2canvas(containerEl, {
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-      scale: 2,
-      width: 1600,
-      height: 1200,
-      windowWidth: 1600,
-      windowHeight: 1200,
+    renderMapLayers(filteredTrips);
+
+    // 自動縮放邏輯
+    const bounds = window.L.latLngBounds([]);
+    let hasPoints = false;
+    filteredTrips.forEach(t => {
+        if (t.originLat && t.originLng) { bounds.extend([t.originLat, t.originLng]); hasPoints = true; }
+        if (t.destLat && t.destLng) { bounds.extend([t.destLat, t.destLng]); hasPoints = true; }
+        // 如果有路徑，也要納入範圍
+        if (t.routePath) {
+           const path = typeof t.routePath === 'string' ? JSON.parse(t.routePath) : t.routePath;
+           if (Array.isArray(path)) path.forEach(p => bounds.extend(p));
+        }
     });
 
-    // 轉檔並下載
-    await new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (!blob) return reject(new Error('Canvas empty'));
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `travel-map-${new Date().toISOString().slice(0,10)}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        resolve();
-      }, 'image/png');
-    });
+    if (hasPoints && bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [50, 50], animate: false });
+    } else {
+        map.setView([20, 0], 2, { animate: false }); // 沒資料就看世界地圖
+    }
 
-  } catch (err) {
-    console.error('Export error:', err);
-    alert("匯出失敗：可能是地圖瓦片跨域(CORS)被阻擋或 tiles 尚未完全載入。若仍失敗請改用支援 CORS 的圖資或啟用伺服端代理。");
-  } finally {
-    // 還原畫面
-    containerEl.style.width = originalStyle.width;
-    containerEl.style.height = originalStyle.height;
-    containerEl.style.position = originalStyle.position;
-    containerEl.style.top = originalStyle.top;
-    containerEl.style.left = originalStyle.left;
-    containerEl.style.zIndex = originalStyle.zIndex;
+    // 4. 截圖
+    setTimeout(async () => {
+        try {
+            await new Promise(resolve => setTimeout(resolve, 1500)); // 等地圖渲染
+            const canvas = await window.html2canvas(captureRef.current, {
+                useCORS: true,       // 允許跨域圖片 (地圖瓦片)
+                allowTaint: false,   // 關閉汙染 (關鍵修正)
+                logging: false,
+                scale: 2,            // 2倍解析度
+                width: 1600,
+                height: 1200,
+                windowWidth: 1600,
+                windowHeight: 1200
+            });
 
-    // remove hide class and temp style
-    controls.forEach(el => el.classList.remove(CONTROL_HIDE_CLASS));
-    if (tempStyle && tempStyle.parentNode) tempStyle.parentNode.removeChild(tempStyle);
+            // 轉存下載
+            canvas.toBlob((blob) => {
+                if (!blob) throw new Error("Canvas is empty");
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = `travel-map-${new Date().toISOString().slice(0,10)}.png`;
+                link.href = url;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, 'image/png');
 
-    // restore map view and layers
-    try {
-      map.invalidateSize();
-      map.setView(originalCenter, originalZoom, { animate: false });
-    } catch(e){ console.warn('restore map view failed', e); }
-    renderMapLayers(trips);
-    setIsExporting(false);
-    setExportDateRangeText('');
-  }
-};
-
+        } catch (err) {
+            console.error(err);
+            alert("匯出失敗，請檢查網路連線或稍後再試。");
+        } finally {
+            // 5. 復原畫面
+            captureRef.current.style.width = originalStyle.width;
+            captureRef.current.style.height = originalStyle.height;
+            captureRef.current.style.position = originalStyle.position;
+            captureRef.current.style.top = originalStyle.top;
+            captureRef.current.style.left = originalStyle.left;
+            captureRef.current.style.zIndex = originalStyle.zIndex;
+            
+            controls.forEach(el => el.style.display = '');
+            map.invalidateSize();
+            map.setView(originalCenter, originalZoom, { animate: false });
+            renderMapLayers(trips); // 恢復顯示所有行程
+            setIsExporting(false);
+            setExportDateRangeText('');
+        }
+    }, 1000);
+  };
 
   const renderCityInput = (type) => {
     const isOrigin = type === 'origin';
@@ -1140,6 +1071,7 @@ const handleExport = async () => {
 
           <button 
             onClick={() => setIsExportModalOpen(true)}
+            // 修正：移除對 libLoaded 的依賴，改在點擊時動態檢查
             disabled={isExporting} 
             className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-blue-600"
             title="匯出地圖圖片"
@@ -1285,7 +1217,7 @@ const handleExport = async () => {
         </div>
       </div>
       
-      {/* ID 輸入 Modal */}
+      {/* ID 輸入 Modal - 分頁設計 */}
       {isIdModalOpen && (
           <div className="fixed inset-0 z-[3000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
