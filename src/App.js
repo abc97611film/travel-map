@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-// ★★★ 修正：補上漏掉的 limit 和 getDocs ★★★
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff } from 'lucide-react';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 和 html2canvas，以相容預覽環境與本機環境
 
@@ -109,7 +108,7 @@ const CITY_TRANSLATIONS = {
   "Prague": "布拉格", "Cesky Krumlov": "庫倫洛夫", "Budapest": "布達佩斯", "Warsaw": "華沙", "Krakow": "克拉科夫",
   "Stockholm": "斯德哥爾摩", "Copenhagen": "哥本哈根", "Oslo": "奧斯陸", "Helsinki": "赫爾辛基", "Reykjavik": "雷克雅維克",
   "Athens": "雅典", "Santorini": "聖托里尼", "Mykonos": "米克諾斯",
-  "İstanbul": "伊斯坦堡", "Cappadocia": "卡帕多奇亞", "Ankara": "安卡拉",
+  "Istanbul": "伊斯坦堡", "Cappadocia": "卡帕多奇亞", "Ankara": "安卡拉",
   "Lisbon": "里斯本", "Porto": "波多",
   "Dubrovnik": "杜布羅夫尼克", "Split": "斯普利特", "Zagreb": "札格瑞布", "Ljubljana": "盧布爾雅那", "Bled": "布萊德",
   "Sarajevo": "塞拉耶佛", "Mostar": "莫斯塔爾", "Belgrade": "貝爾格勒", "Bucharest": "布加勒斯特", "Sofia": "索菲亞",
@@ -372,10 +371,7 @@ export default function TravelMapApp() {
                       return;
                   }
               } else {
-                  // 如果沒有密碼檔 (可能是舊地圖)，暫時允許進入，或提示這是新功能
-                  // 為了安全，我們也可以在這裡「補建立」密碼，或者直接拒絕
-                  // 這裡選擇：如果 ID 有資料但沒密碼 -> 提示「此地圖未設定密碼」並允許進入 (或是要求設定)
-                  // 為了簡化流程：這裡我們假設如果輸入了 ID 且無密碼設定，檢查是否有行程
+                  // 如果沒有密碼檔 (可能是舊地圖)，檢查是否有行程
                   const tripQ = query(collection(db, 'artifacts', appId, 'users', cleanId, 'travel_trips'), limit(1));
                   const tripSnap = await getDocs(tripQ);
                   if (tripSnap.empty) {
@@ -383,8 +379,7 @@ export default function TravelMapApp() {
                        setIsCheckingId(false);
                        return;
                   }
-                  // 是舊地圖，自動幫他補上密碼 (或是直接讓他進去)
-                  // 這裡選擇：直接進入，不卡舊用戶
+                  // 是舊地圖，允許進入，不強制檢查密碼（或提示補設）
               }
           }
 
