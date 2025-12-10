@@ -1012,9 +1012,9 @@ export default function TravelMapApp() {
       
       <header className="bg-blue-900 text-white p-4 shadow-md flex items-center justify-between z-20">
         <div className="flex items-center gap-2">
-          <Globe className="w-6 h-6" />
+          <Map className="w-6 h-6" />
           <div>
-              <h1 className="text-xl font-bold tracking-wide">🗺️歐洲交換趴趴走</h1>
+              <h1 className="text-xl font-bold tracking-wide">歐洲交換趴趴走</h1>
               {currentMapId && (
                   <div className="text-xs opacity-70 flex items-center gap-1">
                       ID: <span className="font-mono bg-blue-800 px-1 rounded">{currentMapId}</span>
@@ -1156,7 +1156,7 @@ export default function TravelMapApp() {
         <div ref={captureRef} className="w-full h-full z-0 bg-slate-200 relative flex flex-col">
           {isExporting && (
             <div className="bg-blue-900 text-white p-6 text-center shadow-md">
-                <h1 className="text-3xl font-bold tracking-wide mb-2">歐洲交換趴趴走</h1>
+                <h1 className="text-3xl font-bold tracking-wide mb-2">🗺️ 歐洲交換趴趴走</h1>
                 {exportDateRangeText && (
                     <p className="text-lg opacity-90 font-mono bg-blue-800 inline-block px-3 py-1 rounded">
                         {exportDateRangeText}
