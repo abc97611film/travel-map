@@ -109,7 +109,7 @@ const CITY_TRANSLATIONS = {
   "Prague": "布拉格", "Cesky Krumlov": "庫倫洛夫", "Budapest": "布達佩斯", "Warsaw": "華沙", "Krakow": "克拉科夫",
   "Stockholm": "斯德哥爾摩", "Copenhagen": "哥本哈根", "Oslo": "奧斯陸", "Helsinki": "赫爾辛基", "Reykjavik": "雷克雅維克",
   "Athens": "雅典", "Santorini": "聖托里尼", "Mykonos": "米克諾斯",
-  "Istanbul": "伊斯坦堡", "Cappadocia": "卡帕多奇亞", "Ankara": "安卡拉",
+  "İstanbul": "伊斯坦堡", "Cappadocia": "卡帕多奇亞", "Ankara": "安卡拉",
   "Lisbon": "里斯本", "Porto": "波多",
   "Dubrovnik": "杜布羅夫尼克", "Split": "斯普利特", "Zagreb": "札格瑞布", "Ljubljana": "盧布爾雅那", "Bled": "布萊德",
   "Sarajevo": "塞拉耶佛", "Mostar": "莫斯塔爾", "Belgrade": "貝爾格勒", "Bucharest": "布加勒斯特", "Sofia": "索菲亞",
@@ -269,8 +269,8 @@ export default function TravelMapApp() {
 
   // ★★★ ID & 密碼 相關狀態 ★★★
   const [currentMapId, setCurrentMapId] = useState('');
-  const [isIdModalOpen, setIsIdModalOpen] = useState(true);
-  const [tempMapIdInput, setTempMapIdInput] = useState('');
+  const [isIdModalOpen, setIsIdModalOpen] = useState(true); // 預設開啟 ID 輸入框
+  const [tempMapIdInput, setTempMapIdInput] = useState(''); // 輸入框的暫存值
   const [tempPasswordInput, setTempPasswordInput] = useState(''); // 密碼輸入
   const [idMode, setIdMode] = useState('enter'); // 'enter' | 'create'
   const [idError, setIdError] = useState('');
