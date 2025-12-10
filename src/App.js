@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2 } from 'lucide-react';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Navigation } from 'lucide-react';
 
 // 使用 CDN 動態載入，確保預覽與本機皆可執行
 // -----------------------------------------------------------------------------
@@ -50,7 +50,29 @@ const COUNTRY_TRANSLATIONS = {
   "Albania": "阿爾巴尼亞", "Montenegro": "蒙特內哥羅", "Kosovo": "科索沃",
   "United States": "美國", "Canada": "加拿大", "Australia": "澳洲", "New Zealand": "紐西蘭",
   "Egypt": "埃及", "Morocco": "摩洛哥", "Singapore": "新加坡", "Malaysia": "馬來西亞",
-  "Thailand": "泰國", "Vietnam": "越南", "Philippines": "菲律賓", "Indonesia": "印尼"
+  "Thailand": "泰國", "Vietnam": "越南", "Philippines": "菲律賓", "Indonesia": "印尼",
+  "India": "印度", "Cambodia": "柬埔寨", "Myanmar": "緬甸", "Laos": "寮國",
+  "Mongolia": "蒙古", "Nepal": "尼泊爾", "Sri Lanka": "斯里蘭卡", "Maldives": "馬爾地夫",
+  "Brunei": "汶萊", "Timor-Leste": "東帝汶", "Bhutan": "不丹", "Bangladesh": "孟加拉",
+  "Pakistan": "巴基斯坦", "Afghanistan": "阿富汗",
+  "Kazakhstan": "哈薩克", "Uzbekistan": "烏茲別克", "Turkmenistan": "土庫曼", 
+  "Kyrgyzstan": "吉爾吉斯", "Tajikistan": "塔吉克",
+  "Andorra": "安道爾", "San Marino": "聖馬利諾", "Belarus": "白俄羅斯", "Moldova": "摩爾多瓦",
+  "Mexico": "墨西哥", "Brazil": "巴西", "Argentina": "阿根廷", "Chile": "智利", "Peru": "秘魯", "Colombia": "哥倫比亞",
+  "Bolivia": "玻利維亞", "Ecuador": "厄瓜多", "Paraguay": "巴拉圭", "Uruguay": "烏拉圭",
+  "Venezuela": "委內瑞拉", "Cuba": "古巴", "Jamaica": "牙買加", "Costa Rica": "哥斯大黎加",
+  "Panama": "巴拿馬", "Bahamas": "巴哈馬", "Dominican Republic": "多明尼加", "Haiti": "海地",
+  "Belize": "貝里斯", "Guatemala": "瓜地馬拉", "Honduras": "宏都拉斯", "El Salvador": "薩爾瓦多",
+  "Nicaragua": "尼加拉瓜",
+  "Fiji": "斐濟", "Palau": "帛琉", "Guam": "關島",
+  "Papua New Guinea": "巴布亞紐幾內亞", "Solomon Islands": "索羅門群島", "Vanuatu": "萬那杜",
+  "South Africa": "南非", "Kenya": "肯亞", "Tanzania": "坦尚尼亞", "Ethiopia": "衣索比亞", 
+  "Nigeria": "奈及利亞", "Ghana": "迦納", "Madagascar": "馬達加斯加", "Sudan": "蘇丹",
+  "Algeria": "阿爾及利亞", "Bahrain": "巴林", "Iran": "伊朗", "Iraq": "伊拉克", 
+  "Israel": "以色列", "Jordan": "約旦", "Kuwait": "科威特", "Lebanon": "黎巴嫩", "Libya": "利比亞", 
+  "Oman": "阿曼", "Palestine": "巴勒斯坦", "Qatar": "卡達", 
+  "Saudi Arabia": "沙烏地阿拉伯", "Syria": "敘利亞", "Tunisia": "突尼西亞", 
+  "United Arab Emirates": "阿拉伯聯合大公國", "Yemen": "葉門", "Western Sahara": "西撒哈拉"
 };
 
 // 城市名稱翻譯 (繁體中文)
@@ -353,15 +375,19 @@ export default function TravelMapApp() {
     return () => unsubscribe();
   }, [user]);
 
-  // ★★★ 使用靜態翻譯資料庫 + 預設城市清單 ★★★
+  // ★★★ 修正：使用靜態翻譯資料庫生成國家列表，確保百分之百有中文 ★★★
   useEffect(() => {
     const countries = Object.entries(COUNTRY_TRANSLATIONS).map(([key, value]) => ({
         name: key, // 英文名作為 ID
         label: `${value} (${key})` // 顯示名：中文 (英文)
     }));
     
-    // 排序：依據「英文名」的字母順序 A-Z 排列
-    countries.sort((a, b) => a.name.localeCompare(b.name));
+    // 排序：台灣優先，其餘按英文名 A-Z
+    countries.sort((a, b) => {
+        if (a.name === "Taiwan") return -1;
+        if (b.name === "Taiwan") return 1;
+        return a.name.localeCompare(b.name);
+    });
     
     setAllCountries(countries);
   }, []);
@@ -380,7 +406,6 @@ export default function TravelMapApp() {
     return null;
   };
 
-  // ★★★ 核心修正：優先使用 PREDEFINED_CITIES，解決北馬其頓空白問題 ★★★
   const fetchCitiesForCountry = async (country, type) => {
     if (!country) return;
     const setCities = type === 'origin' ? setOriginCities : setDestCities;
@@ -390,7 +415,7 @@ export default function TravelMapApp() {
     setLoading(true);
     setManual(false); 
 
-    // 1. 先檢查是否有預定義的城市清單
+    // 1. 先檢查是否有預定義的城市清單 (包含北馬其頓)
     if (PREDEFINED_CITIES[country]) {
         const processedCities = PREDEFINED_CITIES[country].map(city => ({
             value: getDisplayCityName(city),
@@ -506,6 +531,7 @@ export default function TravelMapApp() {
 
     if (geoJsonLayerRef.current) {
         const today = new Date().toISOString().split('T')[0];
+        // 只要行程是過去或進行中，相關國家都亮起
         const activeTrips = tripsToRender.filter(t => t.dateStart && t.dateStart <= today);
         const visitedCountries = new Set(activeTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
         
@@ -527,6 +553,7 @@ export default function TravelMapApp() {
         const isFutureOrNoDate = !trip.dateStart || trip.dateStart > today;
         let polyline;
         
+        // ★★★ 確保使用抓取到的路徑資料 ★★★
         if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
             polyline = L.polyline(trip.routePath, { color: typeConfig.color, weight: 3, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null }).addTo(map);
         } else {
