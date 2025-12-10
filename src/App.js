@@ -5,7 +5,7 @@ import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteD
 import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar } from 'lucide-react';
 
 // -----------------------------------------------------------------------------
-// 1. Firebase 初始化 (您的專屬金鑰)
+// 1. Firebase 初始化
 // -----------------------------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyCFNcDaHTOx4lETnJk844Eq6EZs1AbF9_8",
@@ -119,7 +119,6 @@ const CITY_TRANSLATIONS = {
 };
 
 // ★★★ 預設城市清單 (解決 API 缺漏問題) ★★★
-// 當選擇這些國家時，直接使用這裡的清單，不請求 API
 const PREDEFINED_CITIES = {
   "North Macedonia": ["Skopje", "Ohrid", "Bitola", "Kumanovo", "Prilep", "Tetovo", "Veles", "Stip", "Gostivar", "Strumica"],
   "Kosovo": ["Pristina", "Prizren", "Peja", "Gjakova", "Mitrovica"],
@@ -266,13 +265,13 @@ export default function TravelMapApp() {
 
   // ★★★ ID & 密碼 相關狀態 ★★★
   const [currentMapId, setCurrentMapId] = useState('');
-  const [isIdModalOpen, setIsIdModalOpen] = useState(true); 
-  const [tempMapIdInput, setTempMapIdInput] = useState(''); 
-  const [tempPasswordInput, setTempPasswordInput] = useState('');
+  const [isIdModalOpen, setIsIdModalOpen] = useState(true); // 預設開啟 ID 輸入框
+  const [tempMapIdInput, setTempMapIdInput] = useState(''); // 輸入框的暫存值
+  const [tempPasswordInput, setTempPasswordInput] = useState(''); // 密碼輸入
   const [idMode, setIdMode] = useState('enter'); // 'enter' | 'create'
   const [idError, setIdError] = useState('');
   const [isCheckingId, setIsCheckingId] = useState(false);
-  const [showPassword, setShowPassword] = useState(false); 
+  const [showPassword, setShowPassword] = useState(false); // 顯示/隱藏密碼
   
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
@@ -386,7 +385,13 @@ export default function TravelMapApp() {
           setIsIdModalOpen(false);
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.set('map', cleanId);
-          window.history.pushState({}, '', newUrl);
+          
+          // 修正：使用 try-catch 包裹 pushState，以避免在預覽環境報錯
+          try {
+             window.history.pushState({}, '', newUrl);
+          } catch (historyErr) {
+             console.warn("Could not update URL (expected in preview):", historyErr);
+          }
 
       } catch (err) {
           console.error("Auth check error:", err);
@@ -826,11 +831,14 @@ export default function TravelMapApp() {
 
   // ★★★ 匯出功能修復：強制載入與錯誤處理 ★★★
   const handleExport = async () => {
+      // 1. 如果工具還沒準備好，嘗試提示並返回
       if (!window.html2canvas) {
           // 強制重試一次載入
           const script = document.createElement('script');
           script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-          script.onload = () => handleExport(); // 載入完再試一次
+          script.onload = () => {
+            alert("截圖工具已下載完成，請再按一次匯出按鈕！");
+          };
           document.body.appendChild(script);
           alert("正在下載截圖工具，請稍等 3 秒後再按一次...");
           return;
@@ -1087,7 +1095,8 @@ export default function TravelMapApp() {
 
           <button 
             onClick={() => setIsExportModalOpen(true)}
-            className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm transition-colors border border-blue-600"
+            disabled={isExporting} 
+            className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-blue-600"
             title="匯出地圖圖片"
           >
             {isExporting ? <Loader className="animate-spin" size={16}/> : <Download size={16} />}
@@ -1203,7 +1212,7 @@ export default function TravelMapApp() {
         <div ref={captureRef} className="w-full h-full z-0 bg-slate-200 relative flex flex-col">
           {isExporting && (
             <div className="bg-blue-900 text-white p-6 text-center shadow-md">
-                <h1 className="text-3xl font-bold tracking-wide mb-2">🗺️ 歐洲交換趴趴走</h1>
+                <h1 className="text-3xl font-bold tracking-wide mb-2">歐洲交換趴趴走</h1>
                 {exportDateRangeText && (
                     <p className="text-lg opacity-90 font-mono bg-blue-800 inline-block px-3 py-1 rounded">
                         {exportDateRangeText}
@@ -1231,7 +1240,7 @@ export default function TravelMapApp() {
         </div>
       </div>
       
-      {/* ID 輸入 Modal - 分頁設計 */}
+      {/* ID 輸入 Modal */}
       {isIdModalOpen && (
           <div className="fixed inset-0 z-[3000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
