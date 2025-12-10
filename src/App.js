@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDocs, limit } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Share2, LogOut, Map, LogIn, PlusCircle } from 'lucide-react';
+import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc } from 'firebase/firestore';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Download, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 和 html2canvas，以相容預覽環境與本機環境
 
@@ -266,13 +266,15 @@ export default function TravelMapApp() {
   const [isPickingMode, setIsPickingMode] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
 
-  // ★★★ ID 相關狀態 ★★★
+  // ★★★ ID & 密碼 相關狀態 ★★★
   const [currentMapId, setCurrentMapId] = useState('');
-  const [isIdModalOpen, setIsIdModalOpen] = useState(true); // 預設開啟 ID 輸入框
-  const [tempMapIdInput, setTempMapIdInput] = useState(''); // 輸入框的暫存值
+  const [isIdModalOpen, setIsIdModalOpen] = useState(true);
+  const [tempMapIdInput, setTempMapIdInput] = useState('');
+  const [tempPasswordInput, setTempPasswordInput] = useState(''); // 密碼輸入
   const [idMode, setIdMode] = useState('enter'); // 'enter' | 'create'
   const [idError, setIdError] = useState('');
   const [isCheckingId, setIsCheckingId] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // 顯示/隱藏密碼
   
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
@@ -308,64 +310,111 @@ export default function TravelMapApp() {
       const params = new URLSearchParams(window.location.search);
       const mapIdFromUrl = params.get('map');
       if (mapIdFromUrl) {
-          setCurrentMapId(mapIdFromUrl);
-          setIsIdModalOpen(false); // 有 ID 就直接進入
+          // 如果網址有 ID，先開啟輸入框並設定為「進入模式」
+          setTempMapIdInput(mapIdFromUrl);
+          setIdMode('enter');
+          setIsIdModalOpen(true);
       } else {
-          setIsIdModalOpen(true); // 沒 ID 就跳出視窗
+          setIsIdModalOpen(true);
       }
   }, []);
 
-  // ★★★ 處理 ID 提交 (包含防撞名檢查) ★★★
+  // ★★★ 處理 ID 與密碼提交 ★★★
   const handleIdSubmit = async (e) => {
       e.preventDefault();
       setIdError('');
-      if (!tempMapIdInput.trim()) return;
-      const cleanId = tempMapIdInput.trim().replace(/[^a-zA-Z0-9-_]/g, ''); 
-      if (!cleanId) { setIdError("請輸入有效的 ID (英文、數字、底線或連字號)"); return; }
       
-      // 如果是「建立新地圖」，需要檢查 ID 是否已被使用
-      if (idMode === 'create') {
-          setIsCheckingId(true);
-          try {
-              // 檢查該 ID 下是否有任何行程資料
-              const q = query(collection(db, 'artifacts', appId, 'users', cleanId, 'travel_trips'), orderBy('createdAt', 'desc'), limit(1));
-              const snapshot = await getDocs(q);
-              
-              if (!snapshot.empty) {
-                  setIdError("此 ID 已被使用，請更換一個，或切換到「進入我的地圖」");
+      const cleanId = tempMapIdInput.trim().replace(/[^a-zA-Z0-9-_]/g, ''); 
+      const password = tempPasswordInput.trim();
+
+      if (!cleanId) { setIdError("請輸入有效的 ID (英文、數字)"); return; }
+      if (!password || !/^\d{4,6}$/.test(password)) { setIdError("請輸入 4-6 位數字密碼"); return; }
+
+      setIsCheckingId(true);
+      
+      // 密碼存放路徑: artifacts/{appId}/users/{cleanId}/settings/auth
+      const authDocRef = doc(db, 'artifacts', appId, 'users', cleanId, 'settings', 'auth');
+
+      try {
+          const authSnap = await getDoc(authDocRef);
+
+          if (idMode === 'create') {
+              // --- 建立新地圖 ---
+              if (authSnap.exists()) {
+                  // ID 已被使用 (有密碼設定)
+                  setIdError("此 ID 已被使用，請更換一個");
                   setIsCheckingId(false);
                   return;
+              } else {
+                  // 檢查是否有舊資料 (無密碼但有行程) - 簡單起見，有資料就算佔用
+                  const tripQ = query(collection(db, 'artifacts', appId, 'users', cleanId, 'travel_trips'), limit(1));
+                  const tripSnap = await getDocs(tripQ);
+                  if (!tripSnap.empty) {
+                      setIdError("此 ID 已被使用 (舊版地圖)，請更換 ID");
+                      setIsCheckingId(false);
+                      return;
+                  }
+
+                  // 建立新密碼
+                  await setDoc(authDocRef, { 
+                      password: password,
+                      createdAt: serverTimestamp()
+                  });
               }
-          } catch (err) {
-              console.error("Error checking ID:", err);
-              // 如果權限錯誤(可能第一次)，視為可用
+          } else {
+              // --- 進入我的地圖 ---
+              if (authSnap.exists()) {
+                  const storedData = authSnap.data();
+                  if (storedData.password !== password) {
+                      setIdError("密碼錯誤，請重試");
+                      setIsCheckingId(false);
+                      return;
+                  }
+              } else {
+                  // 如果沒有密碼檔 (可能是舊地圖)，暫時允許進入，或提示這是新功能
+                  // 為了安全，我們也可以在這裡「補建立」密碼，或者直接拒絕
+                  // 這裡選擇：如果 ID 有資料但沒密碼 -> 提示「此地圖未設定密碼」並允許進入 (或是要求設定)
+                  // 為了簡化流程：這裡我們假設如果輸入了 ID 且無密碼設定，檢查是否有行程
+                  const tripQ = query(collection(db, 'artifacts', appId, 'users', cleanId, 'travel_trips'), limit(1));
+                  const tripSnap = await getDocs(tripQ);
+                  if (tripSnap.empty) {
+                       setIdError("找不到此地圖 ID");
+                       setIsCheckingId(false);
+                       return;
+                  }
+                  // 是舊地圖，自動幫他補上密碼 (或是直接讓他進去)
+                  // 這裡選擇：直接進入，不卡舊用戶
+              }
           }
-          setIsCheckingId(false);
+
+          // 驗證通過
+          setCurrentMapId(cleanId);
+          setIsIdModalOpen(false);
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.set('map', cleanId);
+          window.history.pushState({}, '', newUrl);
+
+      } catch (err) {
+          console.error("Auth check error:", err);
+          setIdError("連線錯誤，請稍後再試");
       }
       
-      setCurrentMapId(cleanId);
-      setIsIdModalOpen(false);
-      
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.set('map', cleanId);
-      window.history.pushState({}, '', newUrl);
+      setIsCheckingId(false);
   };
 
   // Helper function to handle sharing
   const handleShare = () => {
       const url = window.location.href;
       navigator.clipboard.writeText(url).then(() => {
-          alert(`網址已複製！傳送給朋友即可分享此地圖：\n${url}`);
+          alert(`網址已複製！\n請記得將您的「地圖 ID」和「密碼」告訴朋友，他們才能編輯喔！\n\n網址：${url}`);
       });
   };
 
   // Helper function to switch map
   const handleSwitchMap = () => {
-      const confirmSwitch = window.confirm("確定要切換地圖嗎？\n這將會回到 ID 輸入畫面。");
+      const confirmSwitch = window.confirm("確定要登出並切換地圖嗎？");
       if (confirmSwitch) {
-          const url = new URL(window.location.href);
-          url.searchParams.delete('map'); 
-          window.location.href = url.toString();
+          window.location.reload(); // 最簡單的登出方式：重新整理
       }
   };
 
@@ -1142,7 +1191,7 @@ export default function TravelMapApp() {
               {/* Tabs */}
               <div className="flex border-b">
                 <button 
-                  onClick={() => setIdMode('enter')}
+                  onClick={() => { setIdMode('enter'); setIdError(''); }}
                   className={`flex-1 py-4 font-bold text-center transition-colors ${idMode === 'enter' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
                 >
                   <div className="flex items-center justify-center gap-2">
@@ -1150,7 +1199,7 @@ export default function TravelMapApp() {
                   </div>
                 </button>
                 <button 
-                  onClick={() => setIdMode('create')}
+                  onClick={() => { setIdMode('create'); setIdError(''); }}
                   className={`flex-1 py-4 font-bold text-center transition-colors ${idMode === 'create' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
                 >
                   <div className="flex items-center justify-center gap-2">
@@ -1169,12 +1218,13 @@ export default function TravelMapApp() {
                   </h2>
                   <p className="text-gray-500 mt-2 text-sm">
                     {idMode === 'enter' 
-                      ? '請輸入您的地圖 ID 以繼續編輯' 
-                      : '請設定一個專屬 ID 來建立新地圖'}
+                      ? '請輸入 ID 與密碼以進入您的地圖' 
+                      : '請設定專屬 ID 與密碼來建立新地圖'}
                   </p>
                 </div>
                 
                 <form onSubmit={handleIdSubmit} className="space-y-4">
+                  {/* ID Input */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">地圖 ID (英文或數字)</label>
                     <input 
@@ -1185,11 +1235,44 @@ export default function TravelMapApp() {
                       value={tempMapIdInput}
                       onChange={(e) => {
                           setTempMapIdInput(e.target.value);
-                          setIdError(''); // Clear error on typing
+                          setIdError('');
                       }}
                     />
-                    {idError && <p className="text-red-500 text-xs mt-1 font-bold">{idError}</p>}
                   </div>
+
+                  {/* Password Input */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">
+                      {idMode === 'enter' ? '輸入密碼' : '設定密碼 (4-6位數字)'}
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                      <input 
+                        type={showPassword ? "text" : "password"} 
+                        required
+                        placeholder="••••••"
+                        maxLength={6}
+                        className={`w-full pl-12 pr-12 p-4 border-2 rounded-xl text-lg outline-none transition-colors ${idError ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-blue-500'}`}
+                        value={tempPasswordInput}
+                        onChange={(e) => {
+                            // Only allow numbers
+                            const val = e.target.value.replace(/\D/g, '');
+                            setTempPasswordInput(val);
+                            setIdError('');
+                        }}
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {idError && <p className="text-red-500 text-sm font-bold text-center bg-red-50 p-2 rounded">{idError}</p>}
+                  
                   <button 
                     type="submit"
                     disabled={isCheckingId}
@@ -1201,7 +1284,7 @@ export default function TravelMapApp() {
                 
                 <div className="mt-6 text-center bg-blue-50 p-3 rounded-lg">
                   <p className="text-xs text-blue-600 font-medium">
-                    💡 ID 是您存取地圖的唯一鑰匙，請妥善保管！
+                    💡 請牢記您的 ID 與密碼，遺失無法找回！
                   </p>
                 </div>
               </div>
