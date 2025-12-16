@@ -7,6 +7,36 @@ import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Glob
 // 注意：我們使用 CDN 動態載入 Leaflet 與 html2canvas，以相容預覽環境與本機環境
 
 // -----------------------------------------------------------------------------
+// 0. 工具函式：計算大圓航線 (Great Circle Path)
+// -----------------------------------------------------------------------------
+const toRad = (d) => d * Math.PI / 180;
+const toDeg = (r) => r * 180 / Math.PI;
+
+const getGreatCirclePoints = (startLat, startLng, endLat, endLng, numPoints = 100) => {
+  const points = [];
+  const lat1 = toRad(startLat);
+  const lon1 = toRad(startLng);
+  const lat2 = toRad(endLat);
+  const lon2 = toRad(endLng);
+
+  const d = 2 * Math.asin(Math.sqrt(Math.pow(Math.sin((lat1 - lat2) / 2), 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.pow(Math.sin((lon1 - lon2) / 2), 2)));
+
+  for (let i = 0; i <= numPoints; i++) {
+    const f = i / numPoints;
+    const A = Math.sin((1 - f) * d) / Math.sin(d);
+    const B = Math.sin(f * d) / Math.sin(d);
+    const x = A * Math.cos(lat1) * Math.cos(lon1) + B * Math.cos(lat2) * Math.cos(lon2);
+    const y = A * Math.cos(lat1) * Math.sin(lon1) + B * Math.cos(lat2) * Math.sin(lon2);
+    const z = A * Math.sin(lat1) + B * Math.sin(lat2);
+    const lat = Math.atan2(z, Math.sqrt(x * x + y * y));
+    const lon = Math.atan2(y, x);
+    points.push([toDeg(lat), toDeg(lon)]);
+  }
+  return points;
+};
+
+// -----------------------------------------------------------------------------
 // 1. Firebase 初始化
 // -----------------------------------------------------------------------------
 const firebaseConfig = {
@@ -183,13 +213,16 @@ const CURRENCIES = [
 const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
-// OSRM 路徑抓取
+// OSRM 路徑抓取 - 獨立函式，增強錯誤處理
 const fetchRoutePath = async (lat1, lng1, lat2, lng2) => {
     try {
+        // 使用 HTTPS 避免 Mixed Content
         const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
         const res = await fetch(url);
+        if (!res.ok) throw new Error('OSRM Network response was not ok');
         const data = await res.json();
         if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+            // 注意：Leaflet 需要 [lat, lng]，OSRM 回傳 [lng, lat]
             return data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
         }
     } catch (e) {
@@ -276,6 +309,7 @@ export default function TravelMapApp() {
   const captureRef = useRef(null); 
   const mapInstanceRef = useRef(null);
   const geoJsonLayerRef = useRef(null);
+  const worldGeoJsonRef = useRef(null); // 儲存原始 GeoJSON 資料供匯出使用
   const layersRef = useRef([]); 
   const pickerMarkerRef = useRef(null);
   const pickingLocationMode = useRef(null);
@@ -551,9 +585,10 @@ export default function TravelMapApp() {
         dateRangeText = `${exportStartDate} 至 ${exportEndDate}`;
     }
 
+    // 修正：強制標題為「🗺️歐洲交換趴趴走」
     header.innerHTML = `
         <div>
-            <h1 style="margin:0; font-size: 28px; font-weight: bold;">🗺️ 我的旅遊足跡</h1>
+            <h1 style="margin:0; font-size: 28px; font-weight: bold;">🗺️歐洲交換趴趴走</h1>
             <p style="margin:5px 0 0 0; opacity: 0.8; font-size: 16px;">地圖 ID: ${currentMapId}</p>
         </div>
         <div style="text-align: right;">
@@ -588,7 +623,24 @@ export default function TravelMapApp() {
         crossOrigin: true 
     }).addTo(exportMap);
 
-    // 6. 加入圖層 (只加入 filteredTrips)
+    // ★★★ 6. 加入國家圖層並高亮顯示 ★★★
+    if (worldGeoJsonRef.current) {
+        // 計算去過的國家 (只針對 filteredTrips)
+        const visitedCountries = new Set(filteredTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
+        
+        L.geoJSON(worldGeoJsonRef.current, {
+            style: { fillColor: '#cbd5e1', weight: 1, opacity: 1, color: 'white', fillOpacity: 0.5 },
+            onEachFeature: (feature, layer) => {
+                const countryName = feature.properties.name;
+                if (visitedCountries.has(countryName)) {
+                    // 高亮顏色
+                    layer.setStyle({ fillColor: '#fcd34d', fillOpacity: 0.8, weight: 1 });
+                }
+            }
+        }).addTo(exportMap);
+    }
+
+    // 7. 加入路徑圖層 (只加入 filteredTrips)
     const bounds = L.latLngBounds();
     let hasData = false;
 
@@ -598,7 +650,11 @@ export default function TravelMapApp() {
         const typeConfig = TRANSPORT_TYPES[trip.transport] || TRANSPORT_TYPES.plane;
         
         let polyline;
-        if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
+        // ★★★ 飛機使用大圓航線，其他使用路徑或直線 ★★★
+        if (trip.transport === 'plane') {
+             const curvedPoints = getGreatCirclePoints(trip.originLat, trip.originLng, trip.destLat, trip.destLng);
+             polyline = L.polyline(curvedPoints, { color: typeConfig.color, weight: 4, opacity: 0.8 }).addTo(exportMap);
+        } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
             polyline = L.polyline(trip.routePath, { color: typeConfig.color, weight: 4, opacity: 0.8 }).addTo(exportMap);
         } else {
             polyline = L.polyline([[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]], { color: typeConfig.color, weight: 4, opacity: 0.8 }).addTo(exportMap);
@@ -613,14 +669,14 @@ export default function TravelMapApp() {
       }
     });
 
-    // 7. 設定視野
+    // 8. 設定視野
     if (hasData && bounds.isValid()) {
         exportMap.fitBounds(bounds, { padding: [50, 50] });
     } else {
         exportMap.setView([48, 15], 4); // 預設歐洲/世界
     }
 
-    // 8. 建立圖例 (Legend) - 放在容器底部
+    // 9. 建立圖例 (Legend) - 放在容器底部
     const legend = document.createElement('div');
     legend.style.padding = '15px 20px';
     legend.style.backgroundColor = 'white';
@@ -641,7 +697,7 @@ export default function TravelMapApp() {
     legend.innerHTML = legendHtml;
     container.appendChild(legend);
 
-    // 9. 等待 Render 並截圖
+    // 10. 等待 Render 並截圖
     // 必須等待一段時間讓 Tile 載入。這裡設定 2 秒，通常足夠。
     await new Promise(r => setTimeout(r, 2000));
 
@@ -652,7 +708,7 @@ export default function TravelMapApp() {
             logging: false
         });
         
-        // 10. 下載
+        // 11. 下載
         const link = document.createElement('a');
         link.download = `travel-map-export-${new Date().toISOString().split('T')[0]}.png`;
         link.href = canvas.toDataURL('image/png');
@@ -662,7 +718,7 @@ export default function TravelMapApp() {
         console.error("Export failed:", err);
         alert("匯出失敗，請檢查網路連線或稍後再試。");
     } finally {
-        // 11. 清理
+        // 12. 清理
         exportMap.remove();
         document.body.removeChild(container);
         setIsExporting(false);
@@ -832,8 +888,13 @@ export default function TravelMapApp() {
         const isFutureOrNoDate = !trip.dateStart || trip.dateStart > today;
         let polyline;
         
-        // ★★★ 確保使用抓取到的路徑資料 ★★★
-        if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
+        // ★★★ 飛機顯示大圓航線 ★★★
+        if (trip.transport === 'plane') {
+             const curvedPoints = getGreatCirclePoints(trip.originLat, trip.originLng, trip.destLat, trip.destLng);
+             polyline = L.polyline(curvedPoints, { color: typeConfig.color, weight: 3, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null }).addTo(map);
+        }
+        // ★★★ 地面交通優先使用實際路徑 ★★★
+        else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
             polyline = L.polyline(trip.routePath, { color: typeConfig.color, weight: 3, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null }).addTo(map);
         } else {
             const straightLatLngs = [[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]];
@@ -885,6 +946,9 @@ export default function TravelMapApp() {
     fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
       .then(res => res.json())
       .then(data => {
+        // ★★★ 儲存原始資料供匯出使用 ★★★
+        worldGeoJsonRef.current = data;
+        
         geoJsonLayerRef.current = L.geoJSON(data, {
           style: { fillColor: '#cbd5e1', weight: 1, opacity: 1, color: 'white', fillOpacity: 0.5 },
           onEachFeature: (feature, layer) => {
@@ -935,18 +999,13 @@ export default function TravelMapApp() {
     let finalRoutePath = null;
     const transportType = TRANSPORT_TYPES[formData.transport];
     
-    // ★★★ 確保路徑抓取邏輯 (開車/火車/公車都抓) ★★★
+    // ★★★ 修正手機版路徑抓取邏輯：使用共用的 fetchRoutePath 函式 ★★★
     if (transportType && transportType.useRoute && formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
-        try {
-            const url = `https://router.project-osrm.org/route/v1/driving/${formData.originLng},${formData.originLat};${formData.destLng},${formData.destLat}?overview=full&geometries=geojson`;
-            const res = await fetch(url);
-            const data = await res.json();
-            if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-                finalRoutePath = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
-            }
-        } catch(e) { console.error("Route error", e); }
+        // 嘗試抓取路徑，如果失敗會回傳 null，之後就會自動變成直線
+        finalRoutePath = await fetchRoutePath(formData.originLat, formData.originLng, formData.destLat, formData.destLng);
     }
     
+    // 將座標陣列轉為 JSON 字串存入 Firestore
     const finalData = { ...formData, routePath: finalRoutePath ? JSON.stringify(finalRoutePath) : null };
 
     // 使用 currentMapId 存入資料
