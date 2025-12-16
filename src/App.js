@@ -91,7 +91,7 @@ const COUNTRY_TRANSLATIONS = {
   "Serbia": "塞爾維亞", "Slovakia": "斯洛伐克", "Slovenia": "斯洛維尼亞", "Spain": "西班牙", 
   "Sweden": "瑞典", "Switzerland": "瑞士", "Turkey": "土耳其", "Ukraine": "烏克蘭", 
   "United Kingdom": "英國", "Vatican City": "梵蒂岡", "Jersey": "澤西島", "Guernsey": "根西島",
-  "Isle of Man": "曼島",
+  "Isle of Man": "曼島", "England": "英國",
 
   // === 中東與北非 (MENA) ===
   "Algeria": "阿爾及利亞", "Bahrain": "巴林", "Egypt": "埃及", "Iran": "伊朗", "Iraq": "伊拉克", 
@@ -107,7 +107,7 @@ const COUNTRY_TRANSLATIONS = {
   "Venezuela": "委內瑞拉", "Cuba": "古巴", "Jamaica": "牙買加", "Costa Rica": "哥斯大黎加",
   "Panama": "巴拿馬", "Bahamas": "巴哈馬", "Dominican Republic": "多明尼加", "Haiti": "海地",
   "Belize": "貝里斯", "Guatemala": "瓜地馬拉", "Honduras": "宏都拉斯", "El Salvador": "薩爾瓦多",
-  "Nicaragua": "尼加拉瓜",
+  "Nicaragua": "尼加拉瓜", "USA": "美國",
 
   // === 大洋洲 (Oceania) ===
   "Australia": "澳洲", "New Zealand": "紐西蘭", "Fiji": "斐濟", "Palau": "帛琉", "Guam": "關島",
@@ -289,6 +289,7 @@ export default function TravelMapApp() {
   const [idError, setIdError] = useState('');
   const [isCheckingId, setIsCheckingId] = useState(false);
   const [showPassword, setShowPassword] = useState(false); 
+  const [rememberMe, setRememberMe] = useState(false); // 新增：記住密碼狀態
   
   // ★★★ 匯出相關狀態 ★★★
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -314,6 +315,7 @@ export default function TravelMapApp() {
   const pickerMarkerRef = useRef(null);
   const pickingLocationMode = useRef(null);
   const latestDataRef = useRef({ trips: [], allCountries: [] });
+  const visitedCountriesRef = useRef(new Set()); // 用於高亮邏輯
 
   const safeDateDisplay = (date) => {
     if (!date) return '';
@@ -324,16 +326,36 @@ export default function TravelMapApp() {
 
   useEffect(() => {
     latestDataRef.current = { trips, allCountries };
+    // 更新去過的國家 Set
+    const today = new Date().toISOString().split('T')[0];
+    const activeTrips = trips.filter(t => t.dateStart && t.dateStart <= today);
+    visitedCountriesRef.current = new Set(activeTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
   }, [trips, allCountries]);
 
-  // ★★★ 初始化：檢查網址是否有 ID ★★★
+  // ★★★ 初始化：檢查網址與 LocalStorage ★★★
   useEffect(() => {
+      // 1. 檢查網址
       const params = new URLSearchParams(window.location.search);
       const mapIdFromUrl = params.get('map');
+      
+      // 2. 檢查 LocalStorage (記住密碼)
+      const storedAuth = localStorage.getItem('travel_map_auth');
+      
       if (mapIdFromUrl) {
           setTempMapIdInput(mapIdFromUrl);
           setIdMode('enter');
           setIsIdModalOpen(true);
+      } else if (storedAuth) {
+          try {
+              const { id, password } = JSON.parse(storedAuth);
+              setTempMapIdInput(id);
+              setTempPasswordInput(password);
+              setRememberMe(true);
+              setIdMode('enter');
+              setIsIdModalOpen(true);
+          } catch(e) {
+              console.error("Local storage parse error", e);
+          }
       } else {
           setIsIdModalOpen(true);
       }
@@ -395,6 +417,13 @@ export default function TravelMapApp() {
               }
           }
 
+          // 登入成功，處理「記住密碼」
+          if (rememberMe) {
+              localStorage.setItem('travel_map_auth', JSON.stringify({ id: cleanId, password }));
+          } else {
+              localStorage.removeItem('travel_map_auth');
+          }
+
           setCurrentMapId(cleanId);
           setIsIdModalOpen(false);
           const newUrl = new URL(window.location.href);
@@ -426,6 +455,7 @@ export default function TravelMapApp() {
   const handleSwitchMap = () => {
       const confirmSwitch = window.confirm("確定要登出並切換地圖嗎？");
       if (confirmSwitch) {
+          localStorage.removeItem('travel_map_auth'); // 登出時清除
           window.location.reload(); 
       }
   };
@@ -558,14 +588,15 @@ export default function TravelMapApp() {
     }
 
     // 2. 建立隱藏的 DOM 容器 (4:3 比例, 1200x900)
+    // 修正：使用 left:0, top:0, z-index:-9999 避免 html2canvas 因為元素在 viewport 外而不渲染
     const container = document.createElement('div');
     container.style.position = 'fixed';
-    container.style.left = '-9999px'; // 隱藏在畫面外
+    container.style.left = '0';
     container.style.top = '0';
     container.style.width = '1200px';
     container.style.height = '900px';
     container.style.backgroundColor = '#f1f5f9'; // bg-slate-100
-    container.style.zIndex = '9999';
+    container.style.zIndex = '-9999';
     container.style.display = 'flex';
     container.style.flexDirection = 'column';
     container.style.fontFamily = 'sans-serif';
@@ -585,7 +616,6 @@ export default function TravelMapApp() {
         dateRangeText = `${exportStartDate} 至 ${exportEndDate}`;
     }
 
-    // 修正：強制標題為「🗺️歐洲交換趴趴走」
     header.innerHTML = `
         <div>
             <h1 style="margin:0; font-size: 28px; font-weight: bold;">🗺️歐洲交換趴趴走</h1>
@@ -698,14 +728,16 @@ export default function TravelMapApp() {
     container.appendChild(legend);
 
     // 10. 等待 Render 並截圖
-    // 必須等待一段時間讓 Tile 載入。這裡設定 2 秒，通常足夠。
-    await new Promise(r => setTimeout(r, 2000));
-
     try {
+        // 增加等待時間到 3秒，並使用 Promise 封裝
+        await new Promise(r => setTimeout(r, 3000));
+
         const canvas = await window.html2canvas(container, {
             useCORS: true, // 允許跨域圖片 (地圖瓦片)
             scale: 2,      // 提高解析度
-            logging: false
+            logging: false,
+            allowTaint: true,
+            backgroundColor: '#f1f5f9'
         });
         
         // 11. 下載
@@ -720,7 +752,9 @@ export default function TravelMapApp() {
     } finally {
         // 12. 清理
         exportMap.remove();
-        document.body.removeChild(container);
+        if (document.body.contains(container)) {
+            document.body.removeChild(container);
+        }
         setIsExporting(false);
         setIsExportModalOpen(false);
     }
@@ -870,6 +904,7 @@ export default function TravelMapApp() {
         const activeTrips = tripsToRender.filter(t => t.dateStart && t.dateStart <= today);
         const visitedCountries = new Set(activeTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
         
+        // 更新高亮邏輯：每次 render 都重新檢查顏色
         geoJsonLayerRef.current.eachLayer((layer) => {
           const countryName = layer.feature.properties.name;
           if (visitedCountries.has(countryName)) {
@@ -943,7 +978,8 @@ export default function TravelMapApp() {
       }
     });
 
-    fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
+    // ★★★ 修正國界粗糙問題：改用高解析度的 GeoJSON Source (holtzy/D3-graph-gallery) ★★★
+    fetch('https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson')
       .then(res => res.json())
       .then(data => {
         // ★★★ 儲存原始資料供匯出使用 ★★★
@@ -957,7 +993,15 @@ export default function TravelMapApp() {
             layer.bindTooltip(displayName, { sticky: true, direction: 'top' });
             layer.on({
               mouseover: (e) => { e.target.setStyle({ weight: 2, color: '#666', fillOpacity: 0.7 }); },
-              mouseout: (e) => { if (geoJsonLayerRef.current) geoJsonLayerRef.current.resetStyle(e.target); },
+              // ★★★ 修正高亮消失問題：移出時檢查是否為去過的國家，手動設定顏色，不使用 resetStyle ★★★
+              mouseout: (e) => { 
+                const isVisited = visitedCountriesRef.current.has(countryName);
+                if (isVisited) {
+                    e.target.setStyle({ fillColor: '#fcd34d', fillOpacity: 0.8, weight: 1, color: 'white' });
+                } else {
+                    e.target.setStyle({ fillColor: '#cbd5e1', fillOpacity: 0.5, weight: 1, color: 'white' });
+                }
+              },
               click: (e) => {
                 if (pickingLocationMode.current) {
                   fetchCitiesForCountry(countryName, pickingLocationMode.current);
@@ -1463,6 +1507,18 @@ export default function TravelMapApp() {
                         {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                       </button>
                     </div>
+                  </div>
+                  
+                  {/* 記住密碼 Checkbox */}
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      id="rememberMe"
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                    />
+                    <label htmlFor="rememberMe" className="text-sm text-gray-600 cursor-pointer select-none">記住 ID 與密碼 (下次自動登入)</label>
                   </div>
 
                   {idError && <p className="text-red-500 text-sm font-bold text-center bg-red-50 p-2 rounded">{idError}</p>}
