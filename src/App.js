@@ -920,65 +920,81 @@ export default function TravelMapApp() {
   };
 
   const openModal = (countryName = '', tripToEdit = null) => {
-    if (mapInstanceRef.current && pickerMarkerRef.current) {
-        mapInstanceRef.current.removeLayer(pickerMarkerRef.current);
-        pickerMarkerRef.current = null;
-    }
-
-    if (tripToEdit) {
-        setEditingId(tripToEdit.id);
-        setFormData({ ...tripToEdit });
-        fetchCitiesForCountry(tripToEdit.originCountry, 'origin');
-        fetchCitiesForCountry(tripToEdit.destCountry, 'dest');
-    } else {
-        setEditingId(null);
-        // ★★★ 修正：使用 latestDataRef 確保在非同步環境下抓到最新資料 ★★★
-        const currentTrips = latestDataRef.current.trips || [];
-        let initOriginCountry = '';
-        let initOriginCity = '';
-        let initOriginLat = null;
-        let initOriginLng = null;
-        let initDestCountry = '';
-
-        if (currentTrips.length > 0) {
-            // Sort by dateEnd desc to get the latest trip in time
-            const sortedTrips = [...currentTrips].sort((a, b) => {
-                const dateA = a.dateEnd || a.dateStart || '0000-00-00';
-                const dateB = b.dateEnd || b.dateStart || '0000-00-00';
-                return dateB.localeCompare(dateA);
-            });
-            const lastTrip = sortedTrips[0];
-            
-            initOriginCountry = lastTrip.destCountry || lastTrip.targetCountry || '';
-            initOriginCity = lastTrip.destCity || '';
-            initOriginLat = lastTrip.destLat;
-            initOriginLng = lastTrip.destLng;
+    try {
+        if (mapInstanceRef.current && pickerMarkerRef.current) {
+            mapInstanceRef.current.removeLayer(pickerMarkerRef.current);
+            pickerMarkerRef.current = null;
         }
 
-        setFormData({
-          originCountry: initOriginCountry || '', 
-          originCity: initOriginCity || '', 
-          originLat: initOriginLat, 
-          originLng: initOriginLng,
-          // ★★★ 新增：將終點國家預設為與起點相同 ★★★
-          destCountry: initOriginCountry || '', 
-          destCity: '', destLat: null, destLng: null,
-          dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
-          transport: 'plane', cost: '', currency: 'EUR',
-          transportNumber: '', seatNumber: '', seatType: 'window', notes: '',
-          targetCountry: countryName || '', routePath: null
-        });
-        
-        // 如果有預設起點，同時載入起點和終點的城市列表 (因為國家相同)
-        if (initOriginCountry) {
-            fetchCitiesForCountry(initOriginCountry, 'origin');
-            fetchCitiesForCountry(initOriginCountry, 'dest');
+        if (tripToEdit) {
+            setEditingId(tripToEdit.id);
+            setFormData({ ...tripToEdit });
+            fetchCitiesForCountry(tripToEdit.originCountry, 'origin');
+            fetchCitiesForCountry(tripToEdit.destCountry, 'dest');
         } else {
-            setOriginCities([]);
-            setDestCities([]);
+            setEditingId(null);
+            
+            // ★★★ 修正：使用 latestDataRef 確保在非同步環境下抓到最新資料 ★★★
+            const currentTrips = latestDataRef.current?.trips || [];
+            let initOriginCountry = '';
+            let initOriginCity = '';
+            let initOriginLat = null;
+            let initOriginLng = null;
+            let initDestCountry = '';
+
+            if (currentTrips.length > 0) {
+                // 找出日期最晚的一筆
+                const sortedTrips = [...currentTrips].sort((a, b) => {
+                    const dateA = a.dateEnd || a.dateStart || '0000-00-00';
+                    const dateB = b.dateEnd || b.dateStart || '0000-00-00';
+                    return dateB.localeCompare(dateA);
+                });
+                const lastTrip = sortedTrips[0];
+                
+                initOriginCountry = lastTrip.destCountry || lastTrip.targetCountry || '';
+                initOriginCity = lastTrip.destCity || '';
+                initOriginLat = lastTrip.destLat;
+                initOriginLng = lastTrip.destLng;
+            }
+
+            setFormData({
+            originCountry: initOriginCountry || '', 
+            originCity: initOriginCity || '', 
+            originLat: initOriginLat, 
+            originLng: initOriginLng,
+            // ★★★ 新增：將終點國家預設為與起點相同 ★★★
+            destCountry: initOriginCountry || '', 
+            destCity: '', destLat: null, destLng: null,
+            dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
+            transport: 'plane', cost: '', currency: 'EUR',
+            transportNumber: '', seatNumber: '', seatType: 'window', notes: '',
+            targetCountry: countryName || '', routePath: null
+            });
+            
+            // 如果有預設起點，同時載入起點和終點的城市列表 (因為國家相同)
+            if (initOriginCountry) {
+                fetchCitiesForCountry(initOriginCountry, 'origin');
+                fetchCitiesForCountry(initOriginCountry, 'dest');
+            } else {
+                setOriginCities([]);
+                setDestCities([]);
+            }
         }
+        setIsModalOpen(true);
+    } catch (err) {
+        console.error("Open Modal Error:", err);
+        // 萬一發生錯誤，至少打開一個空的 Modal 讓使用者可以用
+        setEditingId(null);
+        setFormData({
+            originCountry: '', originCity: '', originLat: null, originLng: null,
+            destCountry: '', destCity: '', destLat: null, destLng: null,
+            dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
+            transport: 'plane', cost: '', currency: 'EUR',
+            transportNumber: '', seatNumber: '', seatType: 'window', notes: '',
+            targetCountry: '', routePath: null
+        });
+        setIsModalOpen(true);
     }
-    setIsModalOpen(true);
   };
 
   const renderMapLayers = (tripsToRender) => {
