@@ -937,7 +937,7 @@ export default function TravelMapApp() {
     } else {
         setEditingId(null);
         // ★★★ 修正：使用 latestDataRef 確保在非同步環境下抓到最新資料 ★★★
-        const currentTrips = latestDataRef.current.trips;
+        const currentTrips = latestDataRef.current.trips || [];
         let initOriginCountry = '';
         let initOriginCity = '';
         let initOriginLat = null;
@@ -945,9 +945,16 @@ export default function TravelMapApp() {
         let initDestCountry = '';
 
         if (currentTrips.length > 0) {
-            const lastTrip = currentTrips[0]; 
-            initOriginCountry = lastTrip.destCountry || lastTrip.targetCountry;
-            initOriginCity = lastTrip.destCity;
+            // Sort by dateEnd desc to get the latest trip in time
+            const sortedTrips = [...currentTrips].sort((a, b) => {
+                const dateA = a.dateEnd || a.dateStart || '0000-00-00';
+                const dateB = b.dateEnd || b.dateStart || '0000-00-00';
+                return dateB.localeCompare(dateA);
+            });
+            const lastTrip = sortedTrips[0];
+            
+            initOriginCountry = lastTrip.destCountry || lastTrip.targetCountry || '';
+            initOriginCity = lastTrip.destCity || '';
             initOriginLat = lastTrip.destLat;
             initOriginLng = lastTrip.destLng;
         }
@@ -957,7 +964,8 @@ export default function TravelMapApp() {
           originCity: initOriginCity || '', 
           originLat: initOriginLat, 
           originLng: initOriginLng,
-          destCountry: initDestCountry || '', 
+          // ★★★ 新增：將終點國家預設為與起點相同 ★★★
+          destCountry: initOriginCountry || '', 
           destCity: '', destLat: null, destLng: null,
           dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
           transport: 'plane', cost: '', currency: 'EUR',
@@ -965,11 +973,14 @@ export default function TravelMapApp() {
           targetCountry: countryName || '', routePath: null
         });
         
-        if (initOriginCountry) fetchCitiesForCountry(initOriginCountry, 'origin');
-        else setOriginCities([]);
-        
-        if (initDestCountry) fetchCitiesForCountry(initDestCountry, 'dest');
-        else setDestCities([]);
+        // 如果有預設起點，同時載入起點和終點的城市列表 (因為國家相同)
+        if (initOriginCountry) {
+            fetchCitiesForCountry(initOriginCountry, 'origin');
+            fetchCitiesForCountry(initOriginCountry, 'dest');
+        } else {
+            setOriginCities([]);
+            setDestCities([]);
+        }
     }
     setIsModalOpen(true);
   };
