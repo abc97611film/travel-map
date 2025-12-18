@@ -660,7 +660,7 @@ export default function TravelMapApp() {
         })
         .then(data => {
             const visitedCountries = new Set(filteredTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
-            L.geoJSON(data, {
+            const geoJsonLayer = L.geoJSON(data, {
                 style: { fillColor: '#cbd5e1', weight: 1, opacity: 1, color: 'white', fillOpacity: 0.5 },
                 onEachFeature: (feature, layer) => {
                     const countryName = feature.properties.name;
@@ -669,6 +669,8 @@ export default function TravelMapApp() {
                     }
                 }
             }).addTo(exportMap);
+            // ★★★ 強制將高亮背景移到最下層，避免蓋住路徑 ★★★
+            geoJsonLayer.bringToBack();
         })
         .catch(err => {
             console.error("GeoJSON load failed:", err);
@@ -678,7 +680,7 @@ export default function TravelMapApp() {
                 .then(res => res.json())
                 .then(data => {
                      const visitedCountries = new Set(filteredTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
-                     L.geoJSON(data, {
+                     const geoJsonLayer = L.geoJSON(data, {
                         style: { fillColor: '#cbd5e1', weight: 1, opacity: 1, color: 'white', fillOpacity: 0.5 },
                         onEachFeature: (feature, layer) => {
                             const countryName = feature.properties.name;
@@ -687,6 +689,8 @@ export default function TravelMapApp() {
                             }
                         }
                     }).addTo(exportMap);
+                    // ★★★ 強制將高亮背景移到最下層 ★★★
+                    geoJsonLayer.bringToBack();
                 });
         });
 
@@ -708,6 +712,9 @@ export default function TravelMapApp() {
             polyline = L.polyline([[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]], { color: typeConfig.color, weight: 4, opacity: 0.8 }).addTo(exportMap);
         }
         
+        // ★★★ 確保路徑在最上層 ★★★
+        polyline.bringToFront();
+
         bounds.extend([trip.originLat, trip.originLng]);
         bounds.extend([trip.destLat, trip.destLng]);
 
@@ -961,6 +968,9 @@ export default function TravelMapApp() {
             layer.setStyle({ fillColor: '#cbd5e1', fillOpacity: 0.5 });
           }
         });
+        
+        // ★★★ 強制將高亮圖層移至最底層 ★★★
+        geoJsonLayerRef.current.bringToBack();
     }
 
     tripsToRender.forEach(trip => {
@@ -980,6 +990,9 @@ export default function TravelMapApp() {
             const straightLatLngs = [[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]];
             polyline = L.polyline(straightLatLngs, { color: typeConfig.color, weight: 3, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null }).addTo(map);
         }
+
+        // ★★★ 確保路徑在最上層 ★★★
+        polyline.bringToFront();
 
         const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
         const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
@@ -1046,6 +1059,8 @@ export default function TravelMapApp() {
             });
           }
         }).addTo(map);
+        // ★★★ 強制將高亮圖層移至最底層 ★★★
+        geoJsonLayerRef.current.bringToBack();
       });
   }, [libLoaded]);
 
