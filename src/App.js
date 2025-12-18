@@ -368,10 +368,6 @@ export default function TravelMapApp() {
           // ★★★ 關鍵修正：如果沒有網址 ID (代表是自己開)，且有儲存的憑證，直接設定 currentMapId 以自動登入
           if (!mapIdFromUrl && initialPass && initialRemember) {
               setCurrentMapId(initialId);
-              // 如果要自動進入，這裡也可以設 isIdModalOpen(false)，但保留 Modal 讓使用者有機會切換帳號也許更好？
-              // 根據需求，這裡我們讓它自動填入，但還是顯示 Modal 讓使用者按一下 Enter 比較保險，
-              // 或者如果想完全自動，可以 uncomment 下面這行：
-              // setIsIdModalOpen(false); 
           }
       }
       
