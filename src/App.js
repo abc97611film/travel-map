@@ -308,6 +308,8 @@ export default function TravelMapApp() {
   });
 
   const mapContainerRef = useRef(null);
+  // Remove unused captureRef
+  // const captureRef = useRef(null); 
   const exportPreviewRef = useRef(null); // 預覽容器 ref
   const mapInstanceRef = useRef(null);
   const geoJsonLayerRef = useRef(null);
@@ -753,29 +755,44 @@ export default function TravelMapApp() {
       const container = exportPreviewRef.current.firstChild; // 取得那個 1200x900 的 div
       
       try {
-          // 為了 html2canvas，我們需要暫時移除 scale 讓他原尺寸渲染，但又要保持他在視窗內
-          // 這裡我們直接對 container 做截圖，html2canvas 會讀取 computed styles
-          // 更好的做法：複製一個 container 到 body 讓它隱形但 full size (z-index -1)
-          
-          // 方案 B：直接抓，但指定 scale: 1 參數給 html2canvas 忽略 css transform
-          // 實際上，為了最穩，我們把它 clone 到 body
+          // 複製 DOM
           const clone = container.cloneNode(true);
+          
+          // ★★★ 關鍵修正：手動複製 Canvas 內容 ★★★
+          // cloneNode 不會複製 Canvas 的繪圖內容，必須手動繪製過去
+          const originalCanvases = container.querySelectorAll('canvas');
+          const clonedCanvases = clone.querySelectorAll('canvas');
+          
+          originalCanvases.forEach((orig, index) => {
+              const dest = clonedCanvases[index];
+              if (dest) {
+                  const ctx = dest.getContext('2d');
+                  // 確保尺寸一致
+                  dest.width = orig.width;
+                  dest.height = orig.height;
+                  ctx.drawImage(orig, 0, 0);
+              }
+          });
+
+          // 設定 clone 的樣式，讓它在背景全尺寸渲染
           clone.style.transform = 'none'; // 移除縮放
           clone.style.position = 'fixed';
           clone.style.top = '0';
           clone.style.left = '0';
-          clone.style.zIndex = '-9999';
+          clone.style.zIndex = '-9999'; // 藏在最下面
           document.body.appendChild(clone);
 
-          // 等待圖片/Tile載入 (尤其是 clone 之後)
-          await new Promise(r => setTimeout(r, 2000));
+          // 給予一點緩衝時間讓瀏覽器處理 DOM
+          await new Promise(r => setTimeout(r, 500));
 
           const canvas = await window.html2canvas(clone, {
               useCORS: true,
               scale: 2, // 高解析度
               logging: false,
-              allowTaint: true,
-              backgroundColor: '#f1f5f9'
+              allowTaint: true, // 允許跨域圖片污染 (雖然有用 useCORS 但加這保險)
+              backgroundColor: '#f1f5f9',
+              // 忽略可能的干擾元素
+              ignoreElements: (element) => element.classList.contains('leaflet-control-zoom') 
           });
 
           const link = document.createElement('a');
@@ -789,7 +806,7 @@ export default function TravelMapApp() {
 
       } catch (err) {
           console.error("Screenshot error", err);
-          alert("截圖失敗，請稍後再試");
+          alert("截圖失敗，請稍後再試。\n錯誤訊息: " + err.message);
       } finally {
           setIsCapturing(false);
       }
@@ -1006,28 +1023,18 @@ export default function TravelMapApp() {
       }
     });
 
-    // ★★★ 修正國界粗糙問題：改用高解析度 GeoJSON ★★★
-    fetch('https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson')
+    fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
       .then(res => res.json())
       .then(data => {
-        worldGeoJsonRef.current = data;
-        
         geoJsonLayerRef.current = L.geoJSON(data, {
           style: { fillColor: '#cbd5e1', weight: 1, opacity: 1, color: 'white', fillOpacity: 0.5 },
           onEachFeature: (feature, layer) => {
-            const countryName = feature.properties.name; 
+            const countryName = feature.properties.name;
             const displayName = getDisplayCountryName(countryName);
             layer.bindTooltip(displayName, { sticky: true, direction: 'top' });
             layer.on({
               mouseover: (e) => { e.target.setStyle({ weight: 2, color: '#666', fillOpacity: 0.7 }); },
-              mouseout: (e) => { 
-                const isVisited = visitedCountriesRef.current.has(countryName);
-                if (isVisited) {
-                    e.target.setStyle({ fillColor: '#fcd34d', fillOpacity: 0.8, weight: 1, color: 'white' });
-                } else {
-                    e.target.setStyle({ fillColor: '#cbd5e1', fillOpacity: 0.5, weight: 1, color: 'white' });
-                }
-              },
+              mouseout: (e) => { if (geoJsonLayerRef.current) geoJsonLayerRef.current.resetStyle(e.target); },
               click: (e) => {
                 if (pickingLocationMode.current) {
                   fetchCitiesForCountry(countryName, pickingLocationMode.current);
@@ -1042,6 +1049,25 @@ export default function TravelMapApp() {
       });
   }, [libLoaded]);
 
+  // Picking Listener
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+    const handleMapClick = () => {
+      setTimeout(() => {
+         if (isPickingMode) {
+             setIsPickingMode(false);
+             setIsModalOpen(true); 
+             const cursorStyle = document.getElementById('map-cursor-style');
+             if (cursorStyle) cursorStyle.innerHTML = '';
+         }
+         pickingLocationMode.current = null;
+      }, 200);
+    };
+    map.on('click', handleMapClick);
+    return () => map.off('click', handleMapClick);
+  }, [isPickingMode, mapLoaded]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) return;
@@ -1050,12 +1076,21 @@ export default function TravelMapApp() {
     let finalRoutePath = null;
     const transportType = TRANSPORT_TYPES[formData.transport];
     
+    // ★★★ 確保路徑抓取邏輯 (開車/火車/公車都抓) ★★★
     if (transportType && transportType.useRoute && formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
-        finalRoutePath = await fetchRoutePath(formData.originLat, formData.originLng, formData.destLat, formData.destLng);
+        try {
+            const url = `https://router.project-osrm.org/route/v1/driving/${formData.originLng},${formData.originLat};${formData.destLng},${formData.destLat}?overview=full&geometries=geojson`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                finalRoutePath = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+            }
+        } catch(e) { console.error("Route error", e); }
     }
     
     const finalData = { ...formData, routePath: finalRoutePath ? JSON.stringify(finalRoutePath) : null };
 
+    // 使用 currentMapId 存入資料
     try {
       if (editingId) {
         await updateDoc(doc(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips', editingId), { ...finalData, updatedAt: serverTimestamp() });
@@ -1197,7 +1232,7 @@ export default function TravelMapApp() {
           <div className="text-xs opacity-70 hidden sm:block">
             {loading ? '載入中...' : `已記錄 ${trips.length} 趟旅程`}
           </div>
-
+          
           <button
             onClick={() => { 
                 setIsExportModalOpen(true); 
@@ -1209,7 +1244,7 @@ export default function TravelMapApp() {
             <Download size={16} />
             <span className="hidden sm:inline">匯出圖片</span>
           </button>
-          
+
           <button 
             onClick={handleSwitchMap}
             className="flex items-center gap-1 bg-blue-800 hover:bg-blue-700 px-3 py-1.5 rounded text-sm transition-colors border border-blue-700"
