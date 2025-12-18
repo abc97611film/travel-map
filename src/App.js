@@ -213,16 +213,14 @@ const CURRENCIES = [
 const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
-// OSRM 路徑抓取 - 獨立函式，增強錯誤處理
+// OSRM 路徑抓取
 const fetchRoutePath = async (lat1, lng1, lat2, lng2) => {
     try {
-        // 使用 HTTPS 避免 Mixed Content
         const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('OSRM Network response was not ok');
         const data = await res.json();
         if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-            // 注意：Leaflet 需要 [lat, lng]，OSRM 回傳 [lng, lat]
             return data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
         }
     } catch (e) {
@@ -333,7 +331,7 @@ export default function TravelMapApp() {
     visitedCountriesRef.current = new Set(activeTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
   }, [trips, allCountries]);
 
-  // ★★★ 初始化：檢查網址與 LocalStorage (修正：確保能自動登入) ★★★
+  // ★★★ 初始化：檢查網址與 LocalStorage ★★★
   useEffect(() => {
       const params = new URLSearchParams(window.location.search);
       const mapIdFromUrl = params.get('map');
@@ -352,7 +350,6 @@ export default function TravelMapApp() {
           } catch (e) { console.error(e); }
       }
 
-      // 如果網址有 ID，以此為主，但若與儲存的 ID 不同，則不預填密碼 (安全考量)
       if (mapIdFromUrl) {
           if (initialId !== mapIdFromUrl) {
               initialPass = ''; 
@@ -364,13 +361,11 @@ export default function TravelMapApp() {
       if (initialId) {
           setTempMapIdInput(initialId);
           setIdMode('enter');
-          
-          // ★★★ 關鍵修正：如果沒有網址 ID (代表是自己開)，且有儲存的憑證，直接設定 currentMapId 以自動登入
+          // ★★★ 關鍵修正：確保有記錄密碼時自動登入 ★★★
           if (!mapIdFromUrl && initialPass && initialRemember) {
               setCurrentMapId(initialId);
           }
       }
-      
       if (initialPass) setTempPasswordInput(initialPass);
       if (initialRemember) setRememberMe(true);
       
@@ -441,7 +436,7 @@ export default function TravelMapApp() {
               }
           }
 
-          // ★★★ 記住密碼邏輯修正 ★★★
+          // ★★★ 記住密碼邏輯 ★★★
           if (rememberMe) {
               localStorage.setItem('travel_map_auth', JSON.stringify({ id: cleanId, password: password }));
           } else {
@@ -477,8 +472,6 @@ export default function TravelMapApp() {
   const handleSwitchMap = () => {
       const confirmSwitch = window.confirm("確定要登出並切換地圖嗎？");
       if (confirmSwitch) {
-          // 不清除 localStorage，除非使用者手動取消勾選
-          // localStorage.removeItem('travel_map_auth'); 
           window.location.reload(); 
       }
   };
