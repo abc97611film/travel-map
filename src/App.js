@@ -335,31 +335,40 @@ export default function TravelMapApp() {
 
   // ★★★ 初始化：檢查網址與 LocalStorage ★★★
   useEffect(() => {
-      // 1. 檢查網址
       const params = new URLSearchParams(window.location.search);
       const mapIdFromUrl = params.get('map');
+      const storedAuthStr = localStorage.getItem('travel_map_auth');
       
-      // 2. 檢查 LocalStorage (記住密碼)
-      const storedAuth = localStorage.getItem('travel_map_auth');
-      
-      if (mapIdFromUrl) {
-          setTempMapIdInput(mapIdFromUrl);
-          setIdMode('enter');
-          setIsIdModalOpen(true);
-      } 
-      
-      // 無論網址有無 ID，只要 LocalStorage 有存，就填入並勾選
-      if (storedAuth) {
+      let initialId = '';
+      let initialPass = '';
+      let initialRemember = false;
+
+      if (storedAuthStr) {
           try {
-              const { id, password } = JSON.parse(storedAuth);
-              setTempMapIdInput(id);
-              setTempPasswordInput(password);
-              setRememberMe(true);
-              if (!mapIdFromUrl) setIdMode('enter');
-          } catch(e) {
-              console.error("Local storage parse error", e);
-          }
+              const stored = JSON.parse(storedAuthStr);
+              initialId = stored.id;
+              initialPass = stored.password;
+              initialRemember = true;
+          } catch (e) { console.error(e); }
       }
+
+      if (mapIdFromUrl) {
+          // 如果網址有 ID，以此為主。但若與儲存的 ID 不同，則不預填密碼 (安全考量)
+          if (initialId !== mapIdFromUrl) {
+              initialPass = ''; 
+              initialRemember = false; 
+          }
+          initialId = mapIdFromUrl;
+      }
+
+      if (initialId) {
+          setTempMapIdInput(initialId);
+          setIdMode('enter');
+      }
+      if (initialPass) setTempPasswordInput(initialPass);
+      if (initialRemember) setRememberMe(true);
+      
+      setIsIdModalOpen(true);
       
       // 安全清除：移除任何可能殘留的匯出隱形圖層
       const oldWrappers = document.querySelectorAll('div[style*="z-index: 9999"]');
@@ -928,16 +937,16 @@ export default function TravelMapApp() {
         }
 
         setFormData({
-          originCountry: initOriginCountry, 
-          originCity: initOriginCity, 
+          originCountry: initOriginCountry || '', 
+          originCity: initOriginCity || '', 
           originLat: initOriginLat, 
           originLng: initOriginLng,
-          destCountry: initDestCountry, 
+          destCountry: initDestCountry || '', 
           destCity: '', destLat: null, destLng: null,
           dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
           transport: 'plane', cost: '', currency: 'EUR',
           transportNumber: '', seatNumber: '', seatType: 'window', notes: '',
-          targetCountry: countryName, routePath: null
+          targetCountry: countryName || '', routePath: null
         });
         
         if (initOriginCountry) fetchCitiesForCountry(initOriginCountry, 'origin');
