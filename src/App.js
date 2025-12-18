@@ -853,6 +853,18 @@ export default function TravelMapApp() {
   };
 
   const fetchCoordinates = async (city, country) => {
+    // 特別處理 Merzouga (梅爾祖卡) 的座標
+    if (city.includes("Merzouga") || city.includes("梅爾祖卡")) {
+       // 31°04'48.2"N 4°00'42.7"W => 31.080056, -4.011861
+       return { lat: 31.080056, lng: -4.011861 };
+    }
+    
+    // 特別處理 Fes (費茲) 的座標
+    if (city.includes("Fes") || city.includes("費茲")) {
+          // 34.033333, -5.000000
+          return { lat: 34.033333, lng: -5.000000 };
+    }
+
     try {
       const query = `${city.split(' (')[0]}, ${country}`;
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
@@ -1718,7 +1730,7 @@ export default function TravelMapApp() {
           </div>
       )}
 
-      {/* 新增/編輯旅程 Modal (這就是之前漏掉的部分，現在補回來了) */}
+      {/* 新增/編輯旅程 Modal (這是之前遺失的部分，現在補回來了) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-0 md:p-4">
           <div className="bg-white md:rounded-xl shadow-2xl w-full max-w-2xl h-full md:h-auto md:max-h-[90vh] overflow-y-auto flex flex-col animate-in fade-in zoom-in duration-200">
