@@ -308,8 +308,6 @@ export default function TravelMapApp() {
   });
 
   const mapContainerRef = useRef(null);
-  // Remove unused captureRef
-  // const captureRef = useRef(null); 
   const exportPreviewRef = useRef(null); // 預覽容器 ref
   const mapInstanceRef = useRef(null);
   const geoJsonLayerRef = useRef(null);
@@ -357,6 +355,7 @@ export default function TravelMapApp() {
               setTempMapIdInput(id);
               setTempPasswordInput(password);
               setRememberMe(true);
+              // 如果網址沒有 ID，才自動進入地圖。如果網址有 ID（朋友分享的），就先停留在登入畫面確認，避免自動登入到自己的地圖。
               if (!mapIdFromUrl) setIdMode('enter');
           } catch(e) {
               console.error("Local storage parse error", e);
@@ -514,8 +513,9 @@ export default function TravelMapApp() {
     return () => unsubscribe();
   }, []);
 
+  // ★★★ 監聽資料庫：只監聽當前 mapId ★★★
   useEffect(() => {
-    if (!user || !currentMapId) return;
+    if (!user || !currentMapId) return; // 沒 ID 不動作
 
     const q = query(collection(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, 
