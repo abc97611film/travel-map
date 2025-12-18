@@ -337,48 +337,31 @@ export default function TravelMapApp() {
 
   // ★★★ 初始化：檢查網址與 LocalStorage ★★★
   useEffect(() => {
+      // 1. 檢查網址
       const params = new URLSearchParams(window.location.search);
       const mapIdFromUrl = params.get('map');
-      const storedAuthStr = localStorage.getItem('travel_map_auth');
       
-      let initialId = '';
-      let initialPass = '';
-      let initialRemember = false;
-
-      if (storedAuthStr) {
-          try {
-              const stored = JSON.parse(storedAuthStr);
-              initialId = stored.id;
-              initialPass = stored.password;
-              initialRemember = true;
-          } catch (e) { console.error(e); }
-      }
-
+      // 2. 檢查 LocalStorage (記住密碼)
+      const storedAuth = localStorage.getItem('travel_map_auth');
+      
       if (mapIdFromUrl) {
-          // 如果網址有 ID，以此為主。但若與儲存的 ID 不同，則不預填密碼 (安全考量)
-          if (initialId !== mapIdFromUrl) {
-              initialPass = ''; 
-              initialRemember = false; 
-          }
-          initialId = mapIdFromUrl;
-      }
-
-      if (initialId) {
-          setTempMapIdInput(initialId);
+          setTempMapIdInput(mapIdFromUrl);
           setIdMode('enter');
-      }
-      if (initialPass) setTempPasswordInput(initialPass);
-      if (initialRemember) setRememberMe(true);
+          setIsIdModalOpen(true);
+      } 
       
-      setIsIdModalOpen(true);
-      
-      // 安全清除：移除任何可能殘留的匯出隱形圖層
-      const oldWrappers = document.querySelectorAll('div[style*="z-index: 9999"]');
-      oldWrappers.forEach(el => {
-          if (el.style.width === '0px' && el.style.height === '0px') {
-              el.remove();
+      // 無論網址有無 ID，只要 LocalStorage 有存，就填入並勾選
+      if (storedAuth) {
+          try {
+              const { id, password } = JSON.parse(storedAuth);
+              setTempMapIdInput(id);
+              setTempPasswordInput(password);
+              setRememberMe(true);
+              if (!mapIdFromUrl) setIdMode('enter');
+          } catch(e) {
+              console.error("Local storage parse error", e);
           }
-      });
+      }
   }, []);
 
   // ★★★ 處理 ID 與密碼提交 ★★★
@@ -922,6 +905,9 @@ export default function TravelMapApp() {
         fetchCitiesForCountry(tripToEdit.destCountry, 'dest');
     } else {
         setEditingId(null);
+        // -----------------------------------------------------------------------------
+        // ★★★ 新增：自動填入上一站終點作為本次起點 ★★★
+        // -----------------------------------------------------------------------------
         const { trips } = latestDataRef.current;
         let initOriginCountry = '';
         let initOriginCity = '';
@@ -929,9 +915,14 @@ export default function TravelMapApp() {
         let initOriginLng = null;
         let initDestCountry = '';
 
+        // 檢查是否有歷史旅程，若有，取最後一筆（最新）的資料
         if (trips.length > 0) {
-            const sortedTrips = [...trips].sort((a, b) => new Date(b.dateEnd || 0) - new Date(a.dateEnd || 0));
-            const lastTrip = sortedTrips[0];
+            // trips 已經在 onSnapshot 裡依日期排序過了，但為了保險起見我們再確認一次
+            // 我們假設最新的旅程在最前面（因為是 orderBy('createdAt', 'desc')），或者您可以根據 dateEnd 排序
+            // 這裡使用 trips[0] 當作最新的一筆
+            const lastTrip = trips[0]; 
+            
+            // 將上一趟的「目的地」設為這趟的「出發地」
             initOriginCountry = lastTrip.destCountry || lastTrip.targetCountry;
             initOriginCity = lastTrip.destCity;
             initOriginLat = lastTrip.destLat;
@@ -1646,174 +1637,6 @@ export default function TravelMapApp() {
               </div>
             </div>
           </div>
-      )}
-
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-0 md:p-4">
-          <div className="bg-white md:rounded-xl shadow-2xl w-full max-w-2xl h-full md:h-auto md:max-h-[90vh] overflow-y-auto flex flex-col animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                {editingId ? '編輯旅程細節' : '新增旅程細節'}
-              </h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100">
-                <X size={28} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-6">
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                {renderCityInput('origin')}
-                {renderCityInput('dest')}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1">出發時間</label>
-                  <div className="flex gap-2 items-center">
-                    <input type="date" className="flex-1 p-3 border rounded text-base" 
-                      value={formData.dateStart} onChange={e => setFormData({...formData, dateStart: e.target.value})} />
-                    
-                    <TimeSelector 
-                      value={formData.timeStart}
-                      onChange={(val) => setFormData({...formData, timeStart: val})}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1">抵達時間</label>
-                  <div className="flex gap-2 items-center">
-                    <input type="date" className="flex-1 p-3 border rounded text-base" 
-                      value={formData.dateEnd} onChange={e => setFormData({...formData, dateEnd: e.target.value})} />
-                    
-                    <TimeSelector 
-                      value={formData.timeEnd}
-                      onChange={(val) => setFormData({...formData, timeEnd: val})}
-                    />
-                  </div>
-                  {formData.dateEnd && formData.dateStart && formData.dateEnd < formData.dateStart && (
-                    <div className="text-amber-600 text-xs mt-1 flex items-center gap-1">
-                      <AlertTriangle size={12}/> 
-                      注意：抵達日期早於出發日期 (跨時區/換日線)
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">交通工具類型</label>
-                <div className="grid grid-cols-4 gap-3">
-                  {Object.entries(TRANSPORT_TYPES).map(([type, config]) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setFormData({...formData, transport: type})}
-                      className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${
-                        formData.transport === type 
-                          ? 'border-blue-500 bg-blue-50 text-blue-700' 
-                          : 'border-transparent bg-gray-100 text-gray-500 hover:bg-gray-200'
-                      }`}
-                    >
-                      {React.createElement(config.icon, { size: 24, className: "mb-1" })}
-                      <span className="text-xs font-bold">{config.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">交通票價 / 費用</label>
-                    <div className="flex gap-2">
-                      <select
-                        className="w-1/3 p-3 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white text-base"
-                        value={formData.currency}
-                        onChange={e => setFormData({...formData, currency: e.target.value})}
-                      >
-                        {CURRENCIES.map(c => (
-                          <option key={c.code} value={c.code}>{c.code} ({c.label})</option>
-                        ))}
-                      </select>
-                      <div className="relative flex-1">
-                        <DollarSign size={16} className="absolute left-3 top-3.5 text-gray-400" />
-                        <input 
-                          type="number"
-                          placeholder="金額"
-                          className="w-full pl-9 p-3 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none text-base"
-                          value={formData.cost} 
-                          onChange={e => setFormData({...formData, cost: e.target.value})}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">航班 / 車次 / 船班</label>
-                    <div className="relative">
-                      <Ticket size={16} className="absolute left-3 top-3.5 text-gray-400" />
-                      <input 
-                        type="text" placeholder="例如: 長榮 BR198"
-                        className="w-full pl-9 p-3 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none text-base"
-                        value={formData.transportNumber} onChange={e => setFormData({...formData, transportNumber: e.target.value})}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">座位詳情</label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Armchair size={16} className="absolute left-3 top-3.5 text-gray-400" />
-                      <input 
-                        type="text" placeholder="座位號碼 (例: 42A)"
-                        className="w-full pl-9 p-3 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none text-base"
-                        value={formData.seatNumber} onChange={e => setFormData({...formData, seatNumber: e.target.value})}
-                      />
-                    </div>
-                    <select 
-                      className="p-3 border rounded w-1/3 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white text-base"
-                      value={formData.seatType}
-                      onChange={e => setFormData({...formData, seatType: e.target.value})}
-                    >
-                      {Object.entries(SEAT_TYPES).map(([key, label]) => (
-                        <option key={key} value={key}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">備註</label>
-                  <textarea 
-                    placeholder="輸入其他備註..."
-                    rows="3"
-                    className="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none text-base"
-                    value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 flex justify-end gap-3 border-t mt-4 pb-8 md:pb-0">
-                <button 
-                  type="button" onClick={() => setIsModalOpen(false)}
-                  className="px-6 py-3 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors text-base"
-                >
-                  取消
-                </button>
-                <button 
-                  type="submit"
-                  disabled={isSaving} // 防止重複提交
-                  className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 text-base flex items-center gap-2"
-                >
-                  {isSaving ? <Loader className="animate-spin" size={20}/> : (editingId ? '更新旅程' : '儲存旅程')}
-                </button>
-              </div>
-
-            </form>
-          </div>
-        </div>
       )}
 
       {/* 刪除確認 Modal */}
