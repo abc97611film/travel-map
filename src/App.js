@@ -725,7 +725,6 @@ export default function TravelMapApp() {
 
     filteredTrips.forEach(trip => {
       if (trip.originLat && trip.originLng && trip.destLat && trip.destLng) {
-        hasData = true;
         const typeConfig = TRANSPORT_TYPES[trip.transport] || TRANSPORT_TYPES.plane;
         
         let polyline;
@@ -937,16 +936,16 @@ export default function TravelMapApp() {
         fetchCitiesForCountry(tripToEdit.destCountry, 'dest');
     } else {
         setEditingId(null);
-        // ★★★ 新增：自動填入上一站終點作為本次起點 ★★★
-        // 這裡直接使用 state 中的 trips，不依賴 ref
+        // ★★★ 修正：使用 latestDataRef 確保在非同步環境下抓到最新資料 ★★★
+        const currentTrips = latestDataRef.current.trips;
         let initOriginCountry = '';
         let initOriginCity = '';
         let initOriginLat = null;
         let initOriginLng = null;
         let initDestCountry = '';
 
-        if (trips.length > 0) {
-            const lastTrip = trips[0]; 
+        if (currentTrips.length > 0) {
+            const lastTrip = currentTrips[0]; 
             initOriginCountry = lastTrip.destCountry || lastTrip.targetCountry;
             initOriginCity = lastTrip.destCity;
             initOriginLat = lastTrip.destLat;
@@ -1207,8 +1206,27 @@ export default function TravelMapApp() {
                 value={formData[fieldCountry]}
                 onChange={(e) => {
                     const newCountry = e.target.value;
-                    setFormData({ ...formData, [fieldCountry]: newCountry, [fieldCity]: '', [fieldLat]: null, [fieldLng]: null }); 
-                    fetchCitiesForCountry(newCountry, type);
+                    
+                    // ★★★ 新增：如果改變的是起點國家，則同時將終點國家設為相同，並載入城市 ★★★
+                    if (type === 'origin') {
+                        setFormData(prev => ({ 
+                             ...prev, 
+                             originCountry: newCountry, 
+                             originCity: '', 
+                             originLat: null, 
+                             originLng: null,
+                             destCountry: newCountry, // 同步設定終點國家
+                             destCity: '', 
+                             destLat: null, 
+                             destLng: null
+                        }));
+                        fetchCitiesForCountry(newCountry, 'origin');
+                        fetchCitiesForCountry(newCountry, 'dest'); // 同時載入終點城市清單
+                    } else {
+                        // 如果是改變終點國家，則維持原樣
+                        setFormData({ ...formData, [fieldCountry]: newCountry, [fieldCity]: '', [fieldLat]: null, [fieldLng]: null }); 
+                        fetchCitiesForCountry(newCountry, type);
+                    }
                 }}
             >
                 <option value="" disabled>請選擇國家</option>
