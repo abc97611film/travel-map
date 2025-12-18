@@ -308,8 +308,6 @@ export default function TravelMapApp() {
   });
 
   const mapContainerRef = useRef(null);
-  // Remove unused captureRef
-  // const captureRef = useRef(null); 
   const exportPreviewRef = useRef(null); // 預覽容器 ref
   const mapInstanceRef = useRef(null);
   const geoJsonLayerRef = useRef(null);
@@ -335,33 +333,60 @@ export default function TravelMapApp() {
     visitedCountriesRef.current = new Set(activeTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
   }, [trips, allCountries]);
 
-  // ★★★ 初始化：檢查網址與 LocalStorage ★★★
+  // ★★★ 初始化：檢查網址與 LocalStorage (修正：確保能自動登入) ★★★
   useEffect(() => {
-      // 1. 檢查網址
       const params = new URLSearchParams(window.location.search);
       const mapIdFromUrl = params.get('map');
+      const storedAuthStr = localStorage.getItem('travel_map_auth');
       
-      // 2. 檢查 LocalStorage (記住密碼)
-      const storedAuth = localStorage.getItem('travel_map_auth');
-      
-      if (mapIdFromUrl) {
-          setTempMapIdInput(mapIdFromUrl);
-          setIdMode('enter');
-          setIsIdModalOpen(true);
-      } 
-      
-      // 無論網址有無 ID，只要 LocalStorage 有存，就填入並勾選
-      if (storedAuth) {
+      let initialId = '';
+      let initialPass = '';
+      let initialRemember = false;
+
+      if (storedAuthStr) {
           try {
-              const { id, password } = JSON.parse(storedAuth);
-              setTempMapIdInput(id);
-              setTempPasswordInput(password);
-              setRememberMe(true);
-              if (!mapIdFromUrl) setIdMode('enter');
-          } catch(e) {
-              console.error("Local storage parse error", e);
+              const stored = JSON.parse(storedAuthStr);
+              initialId = stored.id;
+              initialPass = stored.password;
+              initialRemember = true;
+          } catch (e) { console.error(e); }
+      }
+
+      // 如果網址有 ID，以此為主，但若與儲存的 ID 不同，則不預填密碼 (安全考量)
+      if (mapIdFromUrl) {
+          if (initialId !== mapIdFromUrl) {
+              initialPass = ''; 
+              initialRemember = false; 
+          }
+          initialId = mapIdFromUrl;
+      }
+
+      if (initialId) {
+          setTempMapIdInput(initialId);
+          setIdMode('enter');
+          
+          // ★★★ 關鍵修正：如果沒有網址 ID (代表是自己開)，且有儲存的憑證，直接設定 currentMapId 以自動登入
+          if (!mapIdFromUrl && initialPass && initialRemember) {
+              setCurrentMapId(initialId);
+              // 如果要自動進入，這裡也可以設 isIdModalOpen(false)，但保留 Modal 讓使用者有機會切換帳號也許更好？
+              // 根據需求，這裡我們讓它自動填入，但還是顯示 Modal 讓使用者按一下 Enter 比較保險，
+              // 或者如果想完全自動，可以 uncomment 下面這行：
+              // setIsIdModalOpen(false); 
           }
       }
+      
+      if (initialPass) setTempPasswordInput(initialPass);
+      if (initialRemember) setRememberMe(true);
+      
+      setIsIdModalOpen(true);
+      
+      // 安全清除：移除任何可能殘留的匯出隱形圖層
+      const oldWrappers = document.querySelectorAll('div[style*="z-index: 9999"]');
+      oldWrappers.forEach(el => {
+          if (el.style.width === '0px' && el.style.height === '0px') {
+              el.remove();
+          }
+      });
   }, []);
 
   // ★★★ 處理 ID 與密碼提交 ★★★
@@ -753,6 +778,13 @@ export default function TravelMapApp() {
     // 儲存 map instance 以便清理
     container._exportMap = exportMap;
 
+    // 清理函數
+    return () => {
+        if (container._exportMap) {
+            container._exportMap.remove();
+        }
+    };
+
   }, [showExportPreview, exportStartDate, exportEndDate, trips, currentMapId]);
 
   // ★★★ 執行截圖與下載 ★★★
@@ -905,24 +937,16 @@ export default function TravelMapApp() {
         fetchCitiesForCountry(tripToEdit.destCountry, 'dest');
     } else {
         setEditingId(null);
-        // -----------------------------------------------------------------------------
         // ★★★ 新增：自動填入上一站終點作為本次起點 ★★★
-        // -----------------------------------------------------------------------------
-        const { trips } = latestDataRef.current;
+        // 這裡直接使用 state 中的 trips，不依賴 ref
         let initOriginCountry = '';
         let initOriginCity = '';
         let initOriginLat = null;
         let initOriginLng = null;
         let initDestCountry = '';
 
-        // 檢查是否有歷史旅程，若有，取最後一筆（最新）的資料
         if (trips.length > 0) {
-            // trips 已經在 onSnapshot 裡依日期排序過了，但為了保險起見我們再確認一次
-            // 我們假設最新的旅程在最前面（因為是 orderBy('createdAt', 'desc')），或者您可以根據 dateEnd 排序
-            // 這裡使用 trips[0] 當作最新的一筆
             const lastTrip = trips[0]; 
-            
-            // 將上一趟的「目的地」設為這趟的「出發地」
             initOriginCountry = lastTrip.destCountry || lastTrip.targetCountry;
             initOriginCity = lastTrip.destCity;
             initOriginLat = lastTrip.destLat;
@@ -1166,6 +1190,10 @@ export default function TravelMapApp() {
     const label = isOrigin ? '出發城市/地點' : '抵達城市/地點';
     const placeholder = isOrigin ? '例如: 台北' : '例如: 東京';
     
+    // ★★★ 修正：檢查目前 formData 中的城市是否在下拉選單中，若不在則強制顯示 ★★★
+    const currentCityValue = formData[fieldCity];
+    const isCityInList = cities.some(c => c.value === currentCityValue);
+    
     return (
       <div className="space-y-2">
         <label className="block text-sm font-semibold text-gray-700 flex justify-between">
@@ -1194,7 +1222,7 @@ export default function TravelMapApp() {
             {!isManual ? (
                 <select
                 className="flex-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                value={cities.some(c => c.value === formData[fieldCity]) ? formData[fieldCity] : ""}
+                value={currentCityValue}
                 onChange={async (e) => {
                     if (e.target.value === 'MANUAL_ENTRY') {
                         setManual(true);
@@ -1212,6 +1240,9 @@ export default function TravelMapApp() {
                 }}
                 >
                 <option value="" disabled>請選擇城市</option>
+                {/* 顯示自動帶入的城市 (如果它還沒載入到清單中) */}
+                {!isCityInList && currentCityValue && <option value={currentCityValue}>{currentCityValue}</option>}
+                
                 {cities.map(city => (
                     <option key={city.value} value={city.value}>{city.label}</option>
                 ))}
