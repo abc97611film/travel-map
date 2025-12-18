@@ -355,7 +355,7 @@ export default function TravelMapApp() {
               setTempMapIdInput(id);
               setTempPasswordInput(password);
               setRememberMe(true);
-              // 如果網址沒有 ID，才自動進入地圖。如果網址有 ID（朋友分享的），就先停留在登入畫面確認，避免自動登入到自己的地圖。
+              // 如果網址沒有 ID，才自動進入地圖
               if (!mapIdFromUrl) setIdMode('enter');
           } catch(e) {
               console.error("Local storage parse error", e);
@@ -1083,27 +1083,38 @@ export default function TravelMapApp() {
     return () => map.off('click', handleMapClick);
   }, [isPickingMode, mapLoaded]);
 
+  // ★★★ 修正後的新增旅程 Logic ★★★
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user) {
+        alert("請先登入！");
+        return;
+    }
+    if (!currentMapId) {
+        alert("錯誤：找不到 Map ID，無法儲存。請嘗試重新登入。");
+        return;
+    }
+
     setIsSaving(true);
     
     let finalRoutePath = null;
     const transportType = TRANSPORT_TYPES[formData.transport];
     
     // ★★★ 確保路徑抓取邏輯 (開車/火車/公車都抓) ★★★
-    if (transportType && transportType.useRoute && formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
-        try {
-            const url = `https://router.project-osrm.org/route/v1/driving/${formData.originLng},${formData.originLat};${formData.destLng},${formData.destLat}?overview=full&geometries=geojson`;
-            const res = await fetch(url);
-            const data = await res.json();
-            if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-                finalRoutePath = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
-            }
-        } catch(e) { console.error("Route error", e); }
+    try {
+        if (transportType && transportType.useRoute && formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
+            // 使用共用的 fetchRoutePath 函式
+            finalRoutePath = await fetchRoutePath(formData.originLat, formData.originLng, formData.destLat, formData.destLng);
+        }
+    } catch(err) {
+        console.warn("路徑抓取失敗，將使用直線代替", err);
+        // 不做任何事，finalRoutePath 維持 null，之後會自動畫直線
     }
     
-    const finalData = { ...formData, routePath: finalRoutePath ? JSON.stringify(finalRoutePath) : null };
+    const finalData = { 
+        ...formData, 
+        routePath: finalRoutePath ? JSON.stringify(finalRoutePath) : null 
+    };
 
     // 使用 currentMapId 存入資料
     try {
@@ -1117,8 +1128,12 @@ export default function TravelMapApp() {
           mapInstanceRef.current.removeLayer(pickerMarkerRef.current);
           pickerMarkerRef.current = null;
       }
-    } catch (err) { console.error("Error saving trip:", err); } 
-    finally { setIsSaving(false); }
+    } catch (err) { 
+        console.error("Error saving trip:", err); 
+        alert("儲存失敗，請檢查網路連線或權限。");
+    } finally { 
+        setIsSaving(false); 
+    }
   };
 
   const requestDelete = (e, id) => { e.stopPropagation(); setDeleteConfirmId(id); };
