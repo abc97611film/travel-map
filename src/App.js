@@ -355,12 +355,19 @@ export default function TravelMapApp() {
               setTempMapIdInput(id);
               setTempPasswordInput(password);
               setRememberMe(true);
-              // 如果網址沒有 ID，才自動進入地圖
               if (!mapIdFromUrl) setIdMode('enter');
           } catch(e) {
               console.error("Local storage parse error", e);
           }
       }
+      
+      // 安全清除：移除任何可能殘留的匯出隱形圖層
+      const oldWrappers = document.querySelectorAll('div[style*="z-index: 9999"]');
+      oldWrappers.forEach(el => {
+          if (el.style.width === '0px' && el.style.height === '0px') {
+              el.remove();
+          }
+      });
   }, []);
 
   // ★★★ 處理 ID 與密碼提交 ★★★
@@ -1083,7 +1090,6 @@ export default function TravelMapApp() {
     return () => map.off('click', handleMapClick);
   }, [isPickingMode, mapLoaded]);
 
-  // ★★★ 修正後的新增旅程 Logic ★★★
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) {
