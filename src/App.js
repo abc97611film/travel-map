@@ -213,14 +213,16 @@ const CURRENCIES = [
 const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
-// OSRM 路徑抓取
+// OSRM 路徑抓取 - 獨立函式，增強錯誤處理
 const fetchRoutePath = async (lat1, lng1, lat2, lng2) => {
     try {
+        // 使用 HTTPS 避免 Mixed Content
         const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('OSRM Network response was not ok');
         const data = await res.json();
         if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+            // 注意：Leaflet 需要 [lat, lng]，OSRM 回傳 [lng, lat]
             return data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
         }
     } catch (e) {
@@ -287,13 +289,14 @@ export default function TravelMapApp() {
   const [idError, setIdError] = useState('');
   const [isCheckingId, setIsCheckingId] = useState(false);
   const [showPassword, setShowPassword] = useState(false); 
-  const [rememberMe, setRememberMe] = useState(false); // 記住密碼狀態
+  const [rememberMe, setRememberMe] = useState(false); // 新增：記住密碼狀態
   
   // ★★★ 匯出相關狀態 ★★★
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [showExportPreview, setShowExportPreview] = useState(false); // 新增：控制預覽 Modal
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
+  const [isCapturing, setIsCapturing] = useState(false); // 正在執行 html2canvas
 
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
@@ -305,7 +308,7 @@ export default function TravelMapApp() {
   });
 
   const mapContainerRef = useRef(null);
-  const captureRef = useRef(null); 
+  const exportPreviewRef = useRef(null); // 預覽容器 ref
   const mapInstanceRef = useRef(null);
   const geoJsonLayerRef = useRef(null);
   const worldGeoJsonRef = useRef(null); // 儲存原始 GeoJSON 資料供匯出使用
@@ -332,28 +335,30 @@ export default function TravelMapApp() {
 
   // ★★★ 初始化：檢查網址與 LocalStorage ★★★
   useEffect(() => {
+      // 1. 檢查網址
       const params = new URLSearchParams(window.location.search);
       const mapIdFromUrl = params.get('map');
       
+      // 2. 檢查 LocalStorage (記住密碼)
       const storedAuth = localStorage.getItem('travel_map_auth');
       
       if (mapIdFromUrl) {
           setTempMapIdInput(mapIdFromUrl);
           setIdMode('enter');
           setIsIdModalOpen(true);
-      } else if (storedAuth) {
+      } 
+      
+      // 無論網址有無 ID，只要 LocalStorage 有存，就填入並勾選
+      if (storedAuth) {
           try {
               const { id, password } = JSON.parse(storedAuth);
               setTempMapIdInput(id);
               setTempPasswordInput(password);
               setRememberMe(true);
-              setIdMode('enter');
-              setIsIdModalOpen(true);
+              if (!mapIdFromUrl) setIdMode('enter');
           } catch(e) {
               console.error("Local storage parse error", e);
           }
-      } else {
-          setIsIdModalOpen(true);
       }
   }, []);
 
@@ -449,7 +454,8 @@ export default function TravelMapApp() {
   const handleSwitchMap = () => {
       const confirmSwitch = window.confirm("確定要登出並切換地圖嗎？");
       if (confirmSwitch) {
-          localStorage.removeItem('travel_map_auth'); 
+          // 不清除 localStorage，除非使用者手動取消勾選
+          // localStorage.removeItem('travel_map_auth'); 
           window.location.reload(); 
       }
   };
@@ -563,33 +569,14 @@ export default function TravelMapApp() {
     setAllCountries(countries);
   }, []);
 
-  // ★★★ 核心匯出功能 (修正版：防止卡死) ★★★
-  const handleExportMap = async () => {
-    if (!window.L || !window.html2canvas) {
-        alert("匯出元件尚未載入完成，請稍後再試");
-        return;
-    }
-    setIsExporting(true);
+  // ★★★ 4. 地圖預覽與繪製邏輯 (徹底重寫) ★★★
+  useEffect(() => {
+    if (!showExportPreview || !exportPreviewRef.current || !window.L) return;
 
-    let filteredTrips = trips;
-    if (exportStartDate && exportEndDate) {
-        filteredTrips = trips.filter(t => {
-            if (!t.dateStart) return false;
-            return t.dateStart >= exportStartDate && t.dateStart <= exportEndDate;
-        });
-    }
-
-    // ★★★ 修正：使用 overflow:hidden 的 wrapper 確保在視口內渲染 ★★★
-    const wrapper = document.createElement('div');
-    wrapper.style.position = 'fixed';
-    wrapper.style.top = '0';
-    wrapper.style.left = '0';
-    wrapper.style.width = '0';
-    wrapper.style.height = '0';
-    wrapper.style.overflow = 'hidden';
-    wrapper.style.zIndex = '9999';
-    document.body.appendChild(wrapper);
-
+    // 清除舊的內容
+    exportPreviewRef.current.innerHTML = '';
+    
+    // 建立一個 1200x900 的容器
     const container = document.createElement('div');
     container.style.width = '1200px';
     container.style.height = '900px';
@@ -597,8 +584,13 @@ export default function TravelMapApp() {
     container.style.display = 'flex';
     container.style.flexDirection = 'column';
     container.style.fontFamily = 'sans-serif';
-    wrapper.appendChild(container);
+    container.style.position = 'absolute'; // 讓它在預覽框內絕對定位
+    // 使用 scale 讓這個大容器塞進預覽視窗
+    container.style.transform = 'scale(0.4)'; // 縮小以預覽
+    container.style.transformOrigin = 'top left';
+    exportPreviewRef.current.appendChild(container);
 
+    // 建立標頭
     const header = document.createElement('div');
     header.style.padding = '20px';
     header.style.backgroundColor = '#1e3a8a';
@@ -644,21 +636,57 @@ export default function TravelMapApp() {
     });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        crossOrigin: true 
+        crossOrigin: 'anonymous', // 重要：允許跨域截圖
+        attribution: ''
     }).addTo(exportMap);
 
-    if (worldGeoJsonRef.current) {
-        const visitedCountries = new Set(filteredTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
-        L.geoJSON(worldGeoJsonRef.current, {
-            style: { fillColor: '#cbd5e1', weight: 1, opacity: 1, color: 'white', fillOpacity: 0.5 },
-            onEachFeature: (feature, layer) => {
-                const countryName = feature.properties.ADMIN || feature.properties.name;
-                if (visitedCountries.has(countryName)) {
-                    layer.setStyle({ fillColor: '#fcd34d', fillOpacity: 0.8, weight: 1 });
-                }
-            }
-        }).addTo(exportMap);
+    // 篩選資料
+    let filteredTrips = trips;
+    if (exportStartDate && exportEndDate) {
+        filteredTrips = trips.filter(t => {
+            if (!t.dateStart) return false;
+            return t.dateStart >= exportStartDate && t.dateStart <= exportEndDate;
+        });
     }
+
+    // 加入 GeoJSON (國界)
+    // 使用 fetch 確保載入，並處理錯誤
+    fetch('https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson')
+        .then(res => {
+            if (!res.ok) throw new Error('Network response was not ok');
+            return res.json();
+        })
+        .then(data => {
+            const visitedCountries = new Set(filteredTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
+            L.geoJSON(data, {
+                style: { fillColor: '#cbd5e1', weight: 1, opacity: 1, color: 'white', fillOpacity: 0.5 },
+                onEachFeature: (feature, layer) => {
+                    const countryName = feature.properties.name;
+                    if (visitedCountries.has(countryName)) {
+                        layer.setStyle({ fillColor: '#fcd34d', fillOpacity: 0.8, weight: 1 });
+                    }
+                }
+            }).addTo(exportMap);
+        })
+        .catch(err => {
+            console.error("GeoJSON load failed:", err);
+            // 備案：使用備用源
+            console.log("Retrying with backup GeoJSON source...");
+            fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
+                .then(res => res.json())
+                .then(data => {
+                     const visitedCountries = new Set(filteredTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
+                     L.geoJSON(data, {
+                        style: { fillColor: '#cbd5e1', weight: 1, opacity: 1, color: 'white', fillOpacity: 0.5 },
+                        onEachFeature: (feature, layer) => {
+                            const countryName = feature.properties.name;
+                            if (visitedCountries.has(countryName)) {
+                                layer.setStyle({ fillColor: '#fcd34d', fillOpacity: 0.8, weight: 1 });
+                            }
+                        }
+                    }).addTo(exportMap);
+                });
+        });
 
     const bounds = L.latLngBounds();
     let hasData = false;
@@ -712,33 +740,59 @@ export default function TravelMapApp() {
     legend.innerHTML = legendHtml;
     container.appendChild(legend);
 
-    // 強制等待 3 秒確保地圖載入
-    try {
-        await new Promise(r => setTimeout(r, 3000));
-        const canvas = await window.html2canvas(container, {
-            useCORS: true,
-            scale: 2,
-            logging: false,
-            allowTaint: true,
-            backgroundColor: '#f1f5f9'
-        });
-        
-        const link = document.createElement('a');
-        link.download = `travel-map-export-${new Date().toISOString().split('T')[0]}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
+    // 儲存 map instance 以便清理
+    container._exportMap = exportMap;
 
-    } catch (err) {
-        console.error("Export failed:", err);
-        alert("匯出失敗，請檢查網路連線或稍後再試。");
-    } finally {
-        exportMap.remove();
-        if (document.body.contains(wrapper)) {
-            document.body.removeChild(wrapper);
-        }
-        setIsExporting(false);
-        setIsExportModalOpen(false);
-    }
+  }, [showExportPreview, exportStartDate, exportEndDate, trips, currentMapId]);
+
+  // ★★★ 執行截圖與下載 ★★★
+  const downloadImage = async () => {
+      if (!exportPreviewRef.current) return;
+      setIsCapturing(true);
+      
+      const container = exportPreviewRef.current.firstChild; // 取得那個 1200x900 的 div
+      
+      try {
+          // 為了 html2canvas，我們需要暫時移除 scale 讓他原尺寸渲染，但又要保持他在視窗內
+          // 這裡我們直接對 container 做截圖，html2canvas 會讀取 computed styles
+          // 更好的做法：複製一個 container 到 body 讓它隱形但 full size (z-index -1)
+          
+          // 方案 B：直接抓，但指定 scale: 1 參數給 html2canvas 忽略 css transform
+          // 實際上，為了最穩，我們把它 clone 到 body
+          const clone = container.cloneNode(true);
+          clone.style.transform = 'none'; // 移除縮放
+          clone.style.position = 'fixed';
+          clone.style.top = '0';
+          clone.style.left = '0';
+          clone.style.zIndex = '-9999';
+          document.body.appendChild(clone);
+
+          // 等待圖片/Tile載入 (尤其是 clone 之後)
+          await new Promise(r => setTimeout(r, 2000));
+
+          const canvas = await window.html2canvas(clone, {
+              useCORS: true,
+              scale: 2, // 高解析度
+              logging: false,
+              allowTaint: true,
+              backgroundColor: '#f1f5f9'
+          });
+
+          const link = document.createElement('a');
+          link.download = `travel-map-export-${new Date().toISOString().split('T')[0]}.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+          
+          document.body.removeChild(clone);
+          setIsExportModalOpen(false);
+          setShowExportPreview(false);
+
+      } catch (err) {
+          console.error("Screenshot error", err);
+          alert("截圖失敗，請稍後再試");
+      } finally {
+          setIsCapturing(false);
+      }
   };
 
   const fetchCoordinates = async (city, country) => {
@@ -952,8 +1006,8 @@ export default function TravelMapApp() {
       }
     });
 
-    // ★★★ 修正國界粗糙問題：改用 datasets/geo-countries 的 GeoJSON Source ★★★
-    fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
+    // ★★★ 修正國界粗糙問題：改用高解析度 GeoJSON ★★★
+    fetch('https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson')
       .then(res => res.json())
       .then(data => {
         worldGeoJsonRef.current = data;
@@ -961,9 +1015,7 @@ export default function TravelMapApp() {
         geoJsonLayerRef.current = L.geoJSON(data, {
           style: { fillColor: '#cbd5e1', weight: 1, opacity: 1, color: 'white', fillOpacity: 0.5 },
           onEachFeature: (feature, layer) => {
-            const countryName = feature.properties.ADMIN || feature.properties.name; 
-            feature.properties.name = countryName; 
-            
+            const countryName = feature.properties.name; 
             const displayName = getDisplayCountryName(countryName);
             layer.bindTooltip(displayName, { sticky: true, direction: 'top' });
             layer.on({
@@ -1147,7 +1199,10 @@ export default function TravelMapApp() {
           </div>
 
           <button
-            onClick={() => setIsExportModalOpen(true)}
+            onClick={() => { 
+                setIsExportModalOpen(true); 
+                setShowExportPreview(true); // 開啟預覽
+            }}
             className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm transition-colors"
             title="匯出地圖圖片"
           >
@@ -1290,83 +1345,101 @@ export default function TravelMapApp() {
         </div>
       </div>
       
-      {/* 匯出設定 Modal */}
+      {/* 匯出設定 Modal (預覽版) */}
       {isExportModalOpen && (
-        <div className="fixed inset-0 z-[2500] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in duration-200">
-                <div className="flex justify-between items-center mb-6 border-b pb-4">
+        <div className="fixed inset-0 z-[2500] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col h-[90vh] animate-in fade-in zoom-in duration-200">
+                {/* Header */}
+                <div className="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-xl">
                     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                        <ImageIcon size={24} className="text-blue-600"/> 匯出地圖圖片
+                        <ImageIcon size={24} className="text-blue-600"/> 匯出地圖預覽
                     </h2>
-                    <button onClick={() => setIsExportModalOpen(false)} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-1 rounded-full">
+                    <button onClick={() => { setIsExportModalOpen(false); setShowExportPreview(false); }} className="text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-2 rounded-full">
                         <X size={24} />
                     </button>
                 </div>
 
-                <div className="space-y-4 mb-6">
-                    <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800">
-                        <p>💡 將根據選擇的日期範圍，產生一張 4:3 比例的精美地圖圖片。圖片會自動縮放以包含所有行程。</p>
-                    </div>
+                {/* Body */}
+                <div className="flex-1 flex overflow-hidden">
+                    {/* 設定欄 */}
+                    <div className="w-80 border-r bg-gray-50 p-6 space-y-6 overflow-y-auto">
+                        <div className="bg-blue-100 p-4 rounded-lg text-sm text-blue-800">
+                            <p>💡 此為匯出圖片的預覽。請等待地圖圖資完全載入後，再點擊下載按鈕。</p>
+                        </div>
 
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">設定日期區間 (留空則匯出全部)</label>
-                        <div className="flex gap-2 items-center">
-                            <div className="flex-1">
-                                <label className="text-xs text-gray-500 block mb-1">開始日期</label>
-                                <input 
-                                    type="date" 
-                                    className="w-full p-2 border rounded"
-                                    value={exportStartDate}
-                                    onChange={(e) => setExportStartDate(e.target.value)}
-                                />
-                            </div>
-                            <span className="pt-5 text-gray-400">➜</span>
-                            <div className="flex-1">
-                                <label className="text-xs text-gray-500 block mb-1">結束日期</label>
-                                <input 
-                                    type="date" 
-                                    className="w-full p-2 border rounded"
-                                    value={exportEndDate}
-                                    onChange={(e) => setExportEndDate(e.target.value)}
-                                />
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">設定日期區間</label>
+                            <div className="space-y-2">
+                                <div>
+                                    <label className="text-xs text-gray-500 block mb-1">開始日期</label>
+                                    <input 
+                                        type="date" 
+                                        className="w-full p-2 border rounded"
+                                        value={exportStartDate}
+                                        onChange={(e) => setExportStartDate(e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 block mb-1">結束日期</label>
+                                    <input 
+                                        type="date" 
+                                        className="w-full p-2 border rounded"
+                                        value={exportEndDate}
+                                        onChange={(e) => setExportEndDate(e.target.value)}
+                                    />
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    {(exportStartDate || exportEndDate) && (
-                        <button 
-                            onClick={() => { setExportStartDate(''); setExportEndDate(''); }}
-                            className="text-xs text-blue-600 hover:underline"
-                        >
-                            清除日期 (匯出全部時間)
-                        </button>
-                    )}
-                </div>
-
-                <div className="flex gap-3 justify-end">
-                    <button 
-                        onClick={() => setIsExportModalOpen(false)}
-                        className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                        取消
-                    </button>
-                    <button 
-                        onClick={handleExportMap}
-                        disabled={isExporting}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-wait"
-                    >
-                        {isExporting ? (
-                            <>
-                                <Loader className="animate-spin" size={18} />
-                                產生中...
-                            </>
-                        ) : (
-                            <>
-                                <Download size={18} />
-                                下載圖片
-                            </>
+                        
+                        {(exportStartDate || exportEndDate) && (
+                            <button 
+                                onClick={() => { setExportStartDate(''); setExportEndDate(''); }}
+                                className="text-xs text-blue-600 hover:underline"
+                            >
+                                清除日期 (匯出全部)
+                            </button>
                         )}
-                    </button>
+                        
+                        <div className="pt-6 border-t">
+                            <button 
+                                onClick={downloadImage}
+                                disabled={isCapturing}
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-wait"
+                            >
+                                {isCapturing ? (
+                                    <>
+                                        <Loader className="animate-spin" size={18} />
+                                        處理中...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download size={18} />
+                                        下載圖片
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 預覽區 (4:3) */}
+                    <div className="flex-1 bg-slate-200 flex items-center justify-center p-8 overflow-hidden relative">
+                        {/* 這個 div 是用來掛載預覽地圖的 */}
+                        <div 
+                            style={{ width: '480px', height: '360px', position: 'relative', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }} // 縮小的容器
+                        >
+                            <div ref={exportPreviewRef} className="w-full h-full bg-white relative overflow-hidden" />
+                            
+                            {/* Loading Overlay within preview */}
+                            {isCapturing && (
+                                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-50 flex items-center justify-center">
+                                    <span className="font-bold text-blue-800">截圖中...</span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="absolute bottom-4 text-xs text-gray-500">
+                            預覽已縮小顯示，實際下載為 1200x900 高解析度圖片
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
