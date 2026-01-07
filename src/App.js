@@ -308,7 +308,7 @@ export default function TravelMapApp() {
     destCountry: '', destCity: '', destLat: null, destLng: null,
     dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
     transport: 'plane', cost: '', currency: 'EUR',
-    transportNumber: '', seatNumber: '', seatType: 'window', notes: '',
+    transportNumber: '', seatNumber: '', seatType: '', notes: '', // seatType default empty
     targetCountry: '', routePath: null
   });
 
@@ -996,7 +996,6 @@ export default function TravelMapApp() {
             let initOriginCity = '';
             let initOriginLat = null;
             let initOriginLng = null;
-            let initDestCountry = '';
 
             if (currentTrips.length > 0) {
                 // 找出日期最晚的一筆
@@ -1007,6 +1006,7 @@ export default function TravelMapApp() {
                 });
                 const lastTrip = sortedTrips[0];
                 
+                // ★★★ 自動帶入上一站邏輯：上一站的終點 = 這一站的起點 ★★★
                 initOriginCountry = lastTrip.destCountry || lastTrip.targetCountry || '';
                 initOriginCity = lastTrip.destCity || '';
                 initOriginLat = lastTrip.destLat;
@@ -1023,7 +1023,7 @@ export default function TravelMapApp() {
             destCity: '', destLat: null, destLng: null,
             dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
             transport: 'plane', cost: '', currency: 'EUR',
-            transportNumber: '', seatNumber: '', seatType: 'window', notes: '',
+            transportNumber: '', seatNumber: '', seatType: '', notes: '', // seatType default empty
             targetCountry: countryName || '', routePath: null
             });
             
@@ -1046,7 +1046,7 @@ export default function TravelMapApp() {
             destCountry: '', destCity: '', destLat: null, destLng: null,
             dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
             transport: 'plane', cost: '', currency: 'EUR',
-            transportNumber: '', seatNumber: '', seatType: 'window', notes: '',
+            transportNumber: '', seatNumber: '', seatType: '', notes: '',
             targetCountry: '', routePath: null
         });
         setIsModalOpen(true);
@@ -1379,7 +1379,7 @@ export default function TravelMapApp() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-gray-100 font-sans text-gray-800">
+    <div className="flex flex-col h-[100dvh] w-full bg-gray-100 font-sans text-gray-800">
       
       <header className="bg-blue-900 text-white p-4 shadow-md flex items-center justify-between z-20">
         <div className="flex items-center gap-2">
@@ -1443,7 +1443,7 @@ export default function TravelMapApp() {
             </button>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 md:pb-4">
             {trips.map(trip => (
                 <div 
                     key={trip.id} 
@@ -1499,7 +1499,8 @@ export default function TravelMapApp() {
             }
           </div>
           
-          <div className="p-4 border-t bg-gray-50">
+          {/* 行動裝置版按鈕懸浮修正：在桌面版為 normal flow, 手機版為 fixed bottom */}
+          <div className="p-4 border-t bg-gray-50 md:static fixed bottom-0 left-0 w-full z-10 md:z-auto shadow-inner md:shadow-none">
             <button 
               onClick={() => openModal('')}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg flex items-center justify-center gap-2 shadow transition-colors font-bold text-lg"
@@ -1575,14 +1576,14 @@ export default function TravelMapApp() {
                     </div>
                 </div>
 
-                {/* 時間與交通 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 時間與交通 (修正為獨立區塊，不再是左右並排) */}
+                <div className="space-y-6">
                     {/* 時間設定 */}
                     <div className="bg-gray-50 p-4 rounded-xl space-y-4 border border-gray-100">
                          <h3 className="font-bold text-gray-600 flex items-center gap-2">
                             <Calendar size={18} /> 時間設定
                         </h3>
-                        <div className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">出發時間</label>
                                 <div className="flex gap-2">
@@ -1632,7 +1633,7 @@ export default function TravelMapApp() {
                                 ))}
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                              <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">班次/號碼</label>
                                 <div className="flex items-center bg-white border rounded px-2">
@@ -1647,7 +1648,7 @@ export default function TravelMapApp() {
                                 </div>
                              </div>
                              <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">座位</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">座位號碼</label>
                                 <div className="flex items-center bg-white border rounded px-2">
                                     <Armchair size={14} className="text-gray-400 mr-2"/>
                                     <input 
@@ -1658,6 +1659,20 @@ export default function TravelMapApp() {
                                         onChange={e => setFormData({...formData, seatNumber: e.target.value})}
                                     />
                                 </div>
+                             </div>
+                             {/* 位置選項移入此處 */}
+                             <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">位置</label>
+                                <select 
+                                    className="w-full p-2 border rounded bg-white text-sm h-[38px]"
+                                    value={formData.seatType}
+                                    onChange={e => setFormData({...formData, seatType: e.target.value})}
+                                >
+                                    <option value="" disabled>請選擇</option>
+                                    {Object.entries(SEAT_TYPES).map(([k, v]) => (
+                                        <option key={k} value={k}>{v}</option>
+                                    ))}
+                                </select>
                              </div>
                         </div>
                     </div>
@@ -1687,18 +1702,6 @@ export default function TravelMapApp() {
                                     onChange={e => setFormData({...formData, cost: e.target.value})}
                                 />
                             </div>
-                        </div>
-                         <div className="flex-1">
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">座位偏好</label>
-                            <select 
-                                className="w-full p-2 border rounded bg-white"
-                                value={formData.seatType}
-                                onChange={e => setFormData({...formData, seatType: e.target.value})}
-                            >
-                                {Object.entries(SEAT_TYPES).map(([k, v]) => (
-                                    <option key={k} value={k}>{v}</option>
-                                ))}
-                            </select>
                         </div>
                     </div>
                     <div>
