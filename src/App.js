@@ -1548,6 +1548,203 @@ export default function TravelMapApp() {
         </div>
       </div>
       
+      {/* 新增/編輯旅程 Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6 border-b pb-4">
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                  {editingId ? <Edit2 className="text-blue-600" /> : <PlusCircle className="text-blue-600" />}
+                  {editingId ? '編輯旅程' : '新增旅程'}
+                </h2>
+                <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* 地點區塊 */}
+                <div className="bg-gray-50 p-4 rounded-xl space-y-4 border border-gray-100">
+                    <h3 className="font-bold text-gray-600 flex items-center gap-2">
+                        <MapPin size={18} /> 旅程起訖點
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {renderCityInput('origin')}
+                        {renderCityInput('dest')}
+                    </div>
+                </div>
+
+                {/* 時間與交通 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* 時間設定 */}
+                    <div className="bg-gray-50 p-4 rounded-xl space-y-4 border border-gray-100">
+                         <h3 className="font-bold text-gray-600 flex items-center gap-2">
+                            <Calendar size={18} /> 時間設定
+                        </h3>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">出發時間</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="date" 
+                                        required 
+                                        className="flex-1 p-2 border rounded bg-white"
+                                        value={formData.dateStart}
+                                        onChange={e => setFormData({...formData, dateStart: e.target.value})}
+                                    />
+                                    <TimeSelector value={formData.timeStart} onChange={val => setFormData({...formData, timeStart: val})} />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">抵達時間 (選填)</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="date" 
+                                        className="flex-1 p-2 border rounded bg-white"
+                                        value={formData.dateEnd}
+                                        onChange={e => setFormData({...formData, dateEnd: e.target.value})}
+                                    />
+                                    <TimeSelector value={formData.timeEnd} onChange={val => setFormData({...formData, timeEnd: val})} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 交通工具 */}
+                    <div className="bg-gray-50 p-4 rounded-xl space-y-4 border border-gray-100">
+                        <h3 className="font-bold text-gray-600 flex items-center gap-2">
+                            <Plane size={18} /> 交通方式
+                        </h3>
+                         <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">類型</label>
+                            <div className="grid grid-cols-5 gap-1">
+                                {Object.entries(TRANSPORT_TYPES).map(([key, type]) => (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => setFormData({...formData, transport: key})}
+                                        className={`flex flex-col items-center justify-center p-2 rounded border transition-all ${formData.transport === key ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-105' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                                    >
+                                        {React.createElement(type.icon, { size: 20 })}
+                                        <span className="text-[10px] mt-1">{type.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                             <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">班次/號碼</label>
+                                <div className="flex items-center bg-white border rounded px-2">
+                                    <Ticket size={14} className="text-gray-400 mr-2"/>
+                                    <input 
+                                        type="text" 
+                                        placeholder="例如: BR87"
+                                        className="w-full p-2 text-sm outline-none"
+                                        value={formData.transportNumber}
+                                        onChange={e => setFormData({...formData, transportNumber: e.target.value})}
+                                    />
+                                </div>
+                             </div>
+                             <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">座位</label>
+                                <div className="flex items-center bg-white border rounded px-2">
+                                    <Armchair size={14} className="text-gray-400 mr-2"/>
+                                    <input 
+                                        type="text" 
+                                        placeholder="例如: 12A"
+                                        className="w-full p-2 text-sm outline-none"
+                                        value={formData.seatNumber}
+                                        onChange={e => setFormData({...formData, seatNumber: e.target.value})}
+                                    />
+                                </div>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 費用與備註 */}
+                <div className="bg-gray-50 p-4 rounded-xl space-y-4 border border-gray-100">
+                    <h3 className="font-bold text-gray-600 flex items-center gap-2">
+                        <DollarSign size={18} /> 其他資訊
+                    </h3>
+                    <div className="flex gap-4">
+                        <div className="flex-1">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">費用</label>
+                            <div className="flex">
+                                <select 
+                                    className="p-2 border rounded-l bg-gray-100 border-r-0 text-sm font-bold w-20"
+                                    value={formData.currency}
+                                    onChange={e => setFormData({...formData, currency: e.target.value})}
+                                >
+                                    {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                                </select>
+                                <input 
+                                    type="number" 
+                                    placeholder="0" 
+                                    className="w-full p-2 border rounded-r focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    value={formData.cost}
+                                    onChange={e => setFormData({...formData, cost: e.target.value})}
+                                />
+                            </div>
+                        </div>
+                         <div className="flex-1">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">座位偏好</label>
+                            <select 
+                                className="w-full p-2 border rounded bg-white"
+                                value={formData.seatType}
+                                onChange={e => setFormData({...formData, seatType: e.target.value})}
+                            >
+                                {Object.entries(SEAT_TYPES).map(([k, v]) => (
+                                    <option key={k} value={k}>{v}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">備註 / 筆記</label>
+                        <div className="relative">
+                            <FileText className="absolute top-3 left-3 text-gray-400" size={16} />
+                            <textarea 
+                                className="w-full pl-10 p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none min-h-[80px]"
+                                placeholder="寫點什麼..."
+                                value={formData.notes}
+                                onChange={e => setFormData({...formData, notes: e.target.value})}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-bold hover:bg-gray-50 transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={isSaving}
+                    className="px-8 py-2.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 disabled:opacity-70 flex items-center gap-2"
+                  >
+                    {isSaving ? (
+                        <>
+                            <Loader className="animate-spin" size={18} /> 儲存中...
+                        </>
+                    ) : (
+                        <>
+                            <Check size={18} /> 儲存旅程
+                        </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 匯出設定 Modal (預覽版) */}
       {isExportModalOpen && (
         <div className="fixed inset-0 z-[2500] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
