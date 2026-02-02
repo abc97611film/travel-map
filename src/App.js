@@ -782,6 +782,7 @@ export default function TravelMapApp() {
 
         bounds.extend([trip.originLat, trip.originLng]);
         bounds.extend([trip.destLat, trip.destLng]);
+        hasData = true; // ★★★ 修正：標記有資料，確保 fitBounds 會執行 ★★★
 
         L.circleMarker([trip.originLat, trip.originLng], { radius: 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
         L.circleMarker([trip.destLat, trip.destLng], { radius: 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
