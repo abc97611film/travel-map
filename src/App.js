@@ -489,7 +489,7 @@ export default function TravelMapApp() {
   }, []);
 
   // ★★★ 處理 ID 與密碼提交 ★★★
-  const handleIdSubmit = async (e) => {
+  const handleIdSubmit = useCallback(async (e) => {
       e.preventDefault();
       setIdError('');
       
@@ -568,23 +568,23 @@ export default function TravelMapApp() {
       }
       
       setIsCheckingId(false);
-  };
+  }, [idMode, rememberMe, tempMapIdInput, tempPasswordInput]);
 
-  const handleShare = () => {
+  const handleShare = useCallback(() => {
       const url = window.location.href;
       navigator.clipboard.writeText(url).then(() => {
           alert(`網址已複製！\n請記得將您的「地圖 ID」和「密碼」告訴朋友，他們才能編輯喔！\n\n網址：${url}`);
       });
-  };
+  }, []);
 
-  const handleSwitchMap = () => {
+  const handleSwitchMap = useCallback(() => {
       const confirmSwitch = window.confirm("確定要登出並切換地圖嗎？");
       if (confirmSwitch) {
           // 不清除 localStorage，除非使用者手動取消勾選
           // localStorage.removeItem('travel_map_auth'); 
           window.location.reload(); 
       }
-  };
+  }, []);
 
   // CDN 載入
   useEffect(() => {
@@ -982,7 +982,7 @@ export default function TravelMapApp() {
   }, [showExportPreview, exportStartDate, exportEndDate, trips, currentMapId]);
 
   // ★★★ 執行截圖與下載 ★★★
-  const downloadImage = async () => {
+  const downloadImage = useCallback(async () => {
       if (!exportPreviewRef.current) return;
       setIsCapturing(true);
       
@@ -1036,7 +1036,7 @@ export default function TravelMapApp() {
       } finally {
           setIsCapturing(false);
       }
-  };
+  }, []);
 
   const fetchCitiesForCountry = useCallback(async (country, type) => {
     if (!country) return;
@@ -1371,7 +1371,7 @@ export default function TravelMapApp() {
     return () => map.off('click', handleMapClick);
   }, [isPickingMode, mapLoaded]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     if (!user) {
         alert("請先登入！");
@@ -1426,14 +1426,14 @@ export default function TravelMapApp() {
     } finally { 
         setIsSaving(false); 
     }
-  };
+  }, [user, currentMapId, formData, editingId]);
 
-  const requestDelete = (e, id) => { e.stopPropagation(); setDeleteConfirmId(id); };
-  const confirmDelete = async () => {
+  const requestDelete = useCallback((e, id) => { e.stopPropagation(); setDeleteConfirmId(id); }, []);
+  const confirmDelete = useCallback(async () => {
     if (!user || !deleteConfirmId) return;
     try { await deleteDoc(doc(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips', deleteConfirmId)); setDeleteConfirmId(null); } 
     catch (err) { console.error("Error deleting trip:", err); }
-  };
+  }, [user, currentMapId, deleteConfirmId]);
 
   const renderCityInput = (type) => {
     let cities, isLoading, isManual, setManual, fieldCountry, fieldCity, fieldLat, fieldLng, label, placeholder;
