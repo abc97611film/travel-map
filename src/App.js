@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon } from 'lucide-react';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 與 html2canvas，以相容預覽環境與本機環境
 
@@ -251,11 +251,17 @@ const CURRENCIES = [
 const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
-// OSRM 路徑抓取 - 獨立函式，增強錯誤處理
-const fetchRoutePath = async (lat1, lng1, lat2, lng2) => {
+// OSRM 路徑抓取 - 更新為支援多點 (transit)
+const fetchRoutePath = async (lat1, lng1, lat2, lng2, transitLat = null, transitLng = null) => {
     try {
+        let coordsString = `${lng1},${lat1}`;
+        if (transitLat && transitLng) {
+            coordsString += `;${transitLng},${transitLat}`;
+        }
+        coordsString += `;${lng2},${lat2}`;
+
         // 使用 HTTPS 避免 Mixed Content
-        const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
+        const url = `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=geojson`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('OSRM Network response was not ok');
         const data = await res.json();
@@ -307,12 +313,15 @@ export default function TravelMapApp() {
   const [allCountries, setAllCountries] = useState([]);
   const [originCities, setOriginCities] = useState([]);
   const [destCities, setDestCities] = useState([]);
+  const [transitCities, setTransitCities] = useState([]); // 新增
   const [isLoadingOriginCities, setIsLoadingOriginCities] = useState(false);
   const [isLoadingDestCities, setIsLoadingDestCities] = useState(false);
+  const [isLoadingTransitCities, setIsLoadingTransitCities] = useState(false); // 新增
   
   // 手動輸入模式
   const [isOriginManual, setIsOriginManual] = useState(false);
   const [isDestManual, setIsDestManual] = useState(false);
+  const [isTransitManual, setIsTransitManual] = useState(false); // 新增
   
   const [libLoaded, setLibLoaded] = useState(false);
   const [isPickingMode, setIsPickingMode] = useState(false);
@@ -327,40 +336,70 @@ export default function TravelMapApp() {
   const [idError, setIdError] = useState('');
   const [isCheckingId, setIsCheckingId] = useState(false);
   const [showPassword, setShowPassword] = useState(false); 
-  const [rememberMe, setRememberMe] = useState(false); // 新增：記住密碼狀態
+  const [rememberMe, setRememberMe] = useState(false); 
   
   // ★★★ 匯出相關狀態 ★★★
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [showExportPreview, setShowExportPreview] = useState(false); // 新增：控制預覽 Modal
+  const [showExportPreview, setShowExportPreview] = useState(false); 
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
-  const [isCapturing, setIsCapturing] = useState(false); // 正在執行 html2canvas
+  const [isCapturing, setIsCapturing] = useState(false); 
+
+  // 統計數據
+  const [stats, setStats] = useState({ countries: 0, cities: 0 });
 
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
     destCountry: '', destCity: '', destLat: null, destLng: null,
+    transitCountry: '', transitCity: '', transitLat: null, transitLng: null, // 新增轉機資訊
     dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
     transport: 'plane', cost: '', currency: 'EUR',
-    transportNumber: '', seatNumber: '', seatType: '', notes: '', // seatType default empty
+    transportNumber: '', seatNumber: '', seatType: '', notes: '',
     targetCountry: '', routePath: null
   });
 
   const mapContainerRef = useRef(null);
-  const exportPreviewRef = useRef(null); // 預覽容器 ref
+  const exportPreviewRef = useRef(null); 
   const mapInstanceRef = useRef(null);
   const geoJsonLayerRef = useRef(null);
   const layersRef = useRef([]); 
   const pickerMarkerRef = useRef(null);
   const pickingLocationMode = useRef(null);
   const latestDataRef = useRef({ trips: [], allCountries: [] });
-  const visitedCountriesRef = useRef(new Set()); // 用於高亮邏輯
+  
+  // 用於高亮邏輯 (排除 Transit, 排除 Taiwan)
+  const visitedCountriesRef = useRef(new Set()); 
 
   useEffect(() => {
     latestDataRef.current = { trips, allCountries };
-    // 更新去過的國家 Set
+    // 更新去過的國家 Set (過濾掉轉機國、台灣)
     const today = new Date().toISOString().split('T')[0];
     const activeTrips = trips.filter(t => t.dateStart && t.dateStart <= today);
-    visitedCountriesRef.current = new Set(activeTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
+    const countries = new Set();
+    const cities = new Set();
+
+    activeTrips.forEach(t => {
+        if (t.targetCountry) countries.add(t.targetCountry);
+        if (t.destCountry) countries.add(t.destCountry);
+        if (t.originCountry) countries.add(t.originCountry);
+        
+        // 統計城市 (排除轉機)
+        if (t.originCity && t.originCountry !== 'Taiwan') cities.add(`${t.originCity},${t.originCountry}`);
+        if (t.destCity && t.destCountry !== 'Taiwan') cities.add(`${t.destCity},${t.destCountry}`);
+    });
+
+    // 移除台灣
+    countries.delete('Taiwan');
+    
+    // 更新 Ref 用於地圖繪製
+    visitedCountriesRef.current = countries;
+    
+    // 更新顯示統計
+    setStats({
+        countries: countries.size,
+        cities: cities.size
+    });
+
   }, [trips, allCountries]);
 
   // ★★★ 初始化：檢查網址與 LocalStorage (修正：確保能自動登入) ★★★
@@ -711,18 +750,13 @@ export default function TravelMapApp() {
             return res.json();
         })
         .then(data => {
-            // ★★★ 修正：只高亮「已經去過」的國家 (日期 <= 今天) ★★★
-            const today = new Date().toISOString().split('T')[0];
-            const pastTrips = filteredTrips.filter(t => t.dateStart && t.dateStart <= today);
-            const visitedCountries = new Set(pastTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
+            const visitedCountries = visitedCountriesRef.current;
             
             const geoJsonLayer = L.geoJSON(data, {
                 style: { fillColor: '#cbd5e1', weight: 1, opacity: 1, color: 'white', fillOpacity: 0.5 },
                 onEachFeature: (feature, layer) => {
-                    // ★★★ 修正：同時檢查 name 和 ADMIN 屬性，並加入名稱對照表 ★★★
                     let countryName = feature.properties.name || feature.properties.ADMIN;
                     
-                    // 簡易名稱對照 (解決不同資料源名稱不一致問題)
                     const nameMapping = {
                         "USA": "United States",
                         "United States of America": "United States",
@@ -744,46 +778,20 @@ export default function TravelMapApp() {
                     }
                 }
             }).addTo(exportMap);
-            // ★★★ 強制將高亮背景移到最下層，避免蓋住路徑 ★★★
             geoJsonLayer.bringToBack();
         })
         .catch(err => {
             console.error("GeoJSON load failed:", err);
-            // 備案：使用備用源
-            console.log("Retrying with backup GeoJSON source...");
-            fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
-                .then(res => res.json())
-                .then(data => {
-                     // ★★★ 修正備案：只高亮「已經去過」的國家 (日期 <= 今天) ★★★
-                     const today = new Date().toISOString().split('T')[0];
-                     const pastTrips = filteredTrips.filter(t => t.dateStart && t.dateStart <= today);
-                     const visitedCountries = new Set(pastTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
-
-                     const geoJsonLayer = L.geoJSON(data, {
-                        style: { fillColor: '#cbd5e1', weight: 1, opacity: 1, color: 'white', fillOpacity: 0.5 },
-                        onEachFeature: (feature, layer) => {
-                            const countryName = feature.properties.name;
-                            if (visitedCountries.has(countryName)) {
-                                layer.setStyle({ fillColor: '#fcd34d', fillOpacity: 0.8, weight: 1 });
-                            }
-                        }
-                    }).addTo(exportMap);
-                    // ★★★ 強制將高亮背景移到最下層 ★★★
-                    geoJsonLayer.bringToBack();
-                });
         });
 
     const bounds = L.latLngBounds();
     let hasData = false;
 
-    // ★★★ 取得今天的日期，用於判斷虛線 ★★★
     const today = new Date().toISOString().split('T')[0];
 
     filteredTrips.forEach(trip => {
       if (trip.originLat && trip.originLng && trip.destLat && trip.destLng) {
         const typeConfig = TRANSPORT_TYPES[trip.transport] || TRANSPORT_TYPES.plane;
-        
-        // ★★★ 判斷是否為未來行程 (虛線邏輯) ★★★
         const isFutureOrNoDate = !trip.dateStart || trip.dateStart > today;
         const lineOptions = { 
             color: typeConfig.color, 
@@ -793,21 +801,39 @@ export default function TravelMapApp() {
         };
         
         let polyline;
-        if (trip.transport === 'plane') {
-             const curvedPoints = getGreatCirclePoints(trip.originLat, trip.originLng, trip.destLat, trip.destLng);
-             polyline = L.polyline(curvedPoints, lineOptions).addTo(exportMap);
-        } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
-            polyline = L.polyline(trip.routePath, lineOptions).addTo(exportMap);
+        
+        // 處理有轉機的情況
+        if (trip.transitLat && trip.transitLng) {
+            // 第一段：起點 -> 轉運點
+            if (trip.transport === 'plane') {
+                const curvedPoints1 = getGreatCirclePoints(trip.originLat, trip.originLng, trip.transitLat, trip.transitLng);
+                L.polyline(curvedPoints1, lineOptions).addTo(exportMap);
+                const curvedPoints2 = getGreatCirclePoints(trip.transitLat, trip.transitLng, trip.destLat, trip.destLng);
+                polyline = L.polyline(curvedPoints2, lineOptions).addTo(exportMap);
+            } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
+                polyline = L.polyline(trip.routePath, lineOptions).addTo(exportMap);
+            } else {
+                L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(exportMap);
+                polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
+            }
+            bounds.extend([trip.transitLat, trip.transitLng]);
         } else {
-            polyline = L.polyline([[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
+            // 無轉機
+            if (trip.transport === 'plane') {
+                 const curvedPoints = getGreatCirclePoints(trip.originLat, trip.originLng, trip.destLat, trip.destLng);
+                 polyline = L.polyline(curvedPoints, lineOptions).addTo(exportMap);
+            } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
+                polyline = L.polyline(trip.routePath, lineOptions).addTo(exportMap);
+            } else {
+                polyline = L.polyline([[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
+            }
         }
         
-        // ★★★ 確保路徑在最上層 ★★★
-        polyline.bringToFront();
+        if (polyline) polyline.bringToFront();
 
         bounds.extend([trip.originLat, trip.originLng]);
         bounds.extend([trip.destLat, trip.destLng]);
-        hasData = true; // ★★★ 修正：標記有資料，確保 fitBounds 會執行 ★★★
+        hasData = true;
 
         L.circleMarker([trip.originLat, trip.originLng], { radius: 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
         L.circleMarker([trip.destLat, trip.destLng], { radius: 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
@@ -815,7 +841,8 @@ export default function TravelMapApp() {
     });
 
     if (hasData && bounds.isValid()) {
-        exportMap.fitBounds(bounds, { padding: [50, 50] });
+        // ★★★ 關鍵修正：將 padding 設為極小，確保最大化顯示路徑範圍，縮小無關區域 ★★★
+        exportMap.fitBounds(bounds, { padding: [10, 10] });
     } else {
         exportMap.setView([48, 15], 4);
     }
@@ -840,10 +867,8 @@ export default function TravelMapApp() {
     legend.innerHTML = legendHtml;
     container.appendChild(legend);
 
-    // 儲存 map instance 以便清理
     container._exportMap = exportMap;
 
-    // 清理函數
     return () => {
         if (container._exportMap) {
             container._exportMap.remove();
@@ -857,14 +882,10 @@ export default function TravelMapApp() {
       if (!exportPreviewRef.current) return;
       setIsCapturing(true);
       
-      const container = exportPreviewRef.current.firstChild; // 取得那個 1200x900 的 div
+      const container = exportPreviewRef.current.firstChild; 
       
       try {
-          // 複製 DOM
           const clone = container.cloneNode(true);
-          
-          // ★★★ 關鍵修正：手動複製 Canvas 內容 ★★★
-          // cloneNode 不會複製 Canvas 的繪圖內容，必須手動繪製過去
           const originalCanvases = container.querySelectorAll('canvas');
           const clonedCanvases = clone.querySelectorAll('canvas');
           
@@ -872,31 +893,27 @@ export default function TravelMapApp() {
               const dest = clonedCanvases[index];
               if (dest) {
                   const ctx = dest.getContext('2d');
-                  // 確保尺寸一致
                   dest.width = orig.width;
                   dest.height = orig.height;
                   ctx.drawImage(orig, 0, 0);
               }
           });
 
-          // 設定 clone 的樣式，讓它在背景全尺寸渲染
-          clone.style.transform = 'none'; // 移除縮放
+          clone.style.transform = 'none'; 
           clone.style.position = 'fixed';
           clone.style.top = '0';
           clone.style.left = '0';
-          clone.style.zIndex = '-9999'; // 藏在最下面
+          clone.style.zIndex = '-9999'; 
           document.body.appendChild(clone);
 
-          // 給予一點緩衝時間讓瀏覽器處理 DOM
           await new Promise(r => setTimeout(r, 500));
 
           const canvas = await window.html2canvas(clone, {
               useCORS: true,
-              scale: 2, // 高解析度
+              scale: 2, 
               logging: false,
-              allowTaint: true, // 允許跨域圖片污染 (雖然有用 useCORS 但加這保險)
+              allowTaint: true, 
               backgroundColor: '#f1f5f9',
-              // 忽略可能的干擾元素
               ignoreElements: (element) => element.classList.contains('leaflet-control-zoom') 
           });
 
@@ -919,9 +936,22 @@ export default function TravelMapApp() {
 
   const fetchCitiesForCountry = useCallback(async (country, type) => {
     if (!country) return;
-    const setCities = type === 'origin' ? setOriginCities : setDestCities;
-    const setLoading = type === 'origin' ? setIsLoadingOriginCities : setIsLoadingDestCities;
-    const setManual = type === 'origin' ? setIsOriginManual : setIsDestManual;
+    
+    // 設定對應的 set function
+    let setCities, setLoading, setManual;
+    if (type === 'origin') {
+        setCities = setOriginCities;
+        setLoading = setIsLoadingOriginCities;
+        setManual = setIsOriginManual;
+    } else if (type === 'dest') {
+        setCities = setDestCities;
+        setLoading = setIsLoadingDestCities;
+        setManual = setIsDestManual;
+    } else if (type === 'transit') {
+        setCities = setTransitCities;
+        setLoading = setIsLoadingTransitCities;
+        setManual = setIsTransitManual;
+    }
 
     setLoading(true);
     setManual(false); 
@@ -987,10 +1017,12 @@ export default function TravelMapApp() {
             setFormData({ ...tripToEdit });
             fetchCitiesForCountry(tripToEdit.originCountry, 'origin');
             fetchCitiesForCountry(tripToEdit.destCountry, 'dest');
+            if (tripToEdit.transitCountry) {
+                fetchCitiesForCountry(tripToEdit.transitCountry, 'transit');
+            }
         } else {
             setEditingId(null);
             
-            // ★★★ 修正：使用 latestDataRef 確保在非同步環境下抓到最新資料 ★★★
             const currentTrips = latestDataRef.current?.trips || [];
             let initOriginCountry = '';
             let initOriginCity = '';
@@ -998,7 +1030,6 @@ export default function TravelMapApp() {
             let initOriginLng = null;
 
             if (currentTrips.length > 0) {
-                // 找出日期最晚的一筆
                 const sortedTrips = [...currentTrips].sort((a, b) => {
                     const dateA = a.dateEnd || a.dateStart || '0000-00-00';
                     const dateB = b.dateEnd || b.dateStart || '0000-00-00';
@@ -1006,7 +1037,6 @@ export default function TravelMapApp() {
                 });
                 const lastTrip = sortedTrips[0];
                 
-                // ★★★ 自動帶入上一站邏輯：上一站的終點 = 這一站的起點 ★★★
                 initOriginCountry = lastTrip.destCountry || lastTrip.targetCountry || '';
                 initOriginCity = lastTrip.destCity || '';
                 initOriginLat = lastTrip.destLat;
@@ -1018,16 +1048,15 @@ export default function TravelMapApp() {
             originCity: initOriginCity || '', 
             originLat: initOriginLat, 
             originLng: initOriginLng,
-            // ★★★ 新增：將終點國家預設為與起點相同 ★★★
             destCountry: initOriginCountry || '', 
             destCity: '', destLat: null, destLng: null,
+            transitCountry: '', transitCity: '', transitLat: null, transitLng: null, // Reset transit
             dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
             transport: 'plane', cost: '', currency: 'EUR',
-            transportNumber: '', seatNumber: '', seatType: '', notes: '', // seatType default empty
+            transportNumber: '', seatNumber: '', seatType: '', notes: '',
             targetCountry: countryName || '', routePath: null
             });
             
-            // 如果有預設起點，同時載入起點和終點的城市列表 (因為國家相同)
             if (initOriginCountry) {
                 fetchCitiesForCountry(initOriginCountry, 'origin');
                 fetchCitiesForCountry(initOriginCountry, 'dest');
@@ -1035,15 +1064,16 @@ export default function TravelMapApp() {
                 setOriginCities([]);
                 setDestCities([]);
             }
+            setTransitCities([]);
         }
         setIsModalOpen(true);
     } catch (err) {
         console.error("Open Modal Error:", err);
-        // 萬一發生錯誤，至少打開一個空的 Modal 讓使用者可以用
         setEditingId(null);
         setFormData({
             originCountry: '', originCity: '', originLat: null, originLng: null,
             destCountry: '', destCity: '', destLat: null, destLng: null,
+            transitCountry: '', transitCity: '', transitLat: null, transitLng: null,
             dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
             transport: 'plane', cost: '', currency: 'EUR',
             transportNumber: '', seatNumber: '', seatType: '', notes: '',
@@ -1067,9 +1097,8 @@ export default function TravelMapApp() {
     }
 
     if (geoJsonLayerRef.current) {
-        const today = new Date().toISOString().split('T')[0];
-        const activeTrips = tripsToRender.filter(t => t.dateStart && t.dateStart <= today);
-        const visitedCountries = new Set(activeTrips.flatMap(t => [t.targetCountry, t.destCountry, t.originCountry]).filter(Boolean));
+        // ★★★ 高亮邏輯：使用已過濾的 Set (排除 Taiwan 與 Transit) ★★★
+        const visitedCountries = visitedCountriesRef.current;
         
         geoJsonLayerRef.current.eachLayer((layer) => {
           const countryName = layer.feature.properties.name || layer.feature.properties.ADMIN;
@@ -1079,8 +1108,6 @@ export default function TravelMapApp() {
             layer.setStyle({ fillColor: '#cbd5e1', fillOpacity: 0.5 });
           }
         });
-        
-        // ★★★ 強制將高亮圖層移至最底層 ★★★
         geoJsonLayerRef.current.bringToBack();
     }
 
@@ -1089,35 +1116,64 @@ export default function TravelMapApp() {
         const typeConfig = TRANSPORT_TYPES[trip.transport] || TRANSPORT_TYPES.plane;
         const today = new Date().toISOString().split('T')[0];
         const isFutureOrNoDate = !trip.dateStart || trip.dateStart > today;
+        const lineOptions = { color: typeConfig.color, weight: 3, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null };
+        
         let polyline;
         
-        if (trip.transport === 'plane') {
-             const curvedPoints = getGreatCirclePoints(trip.originLat, trip.originLng, trip.destLat, trip.destLng);
-             polyline = L.polyline(curvedPoints, { color: typeConfig.color, weight: 3, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null }).addTo(map);
-        }
-        else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
-            polyline = L.polyline(trip.routePath, { color: typeConfig.color, weight: 3, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null }).addTo(map);
+        // ★★★ 處理轉機路徑繪製 ★★★
+        if (trip.transitLat && trip.transitLng) {
+            // 繪製兩段路徑
+            if (trip.transport === 'plane') {
+                const curvedPoints1 = getGreatCirclePoints(trip.originLat, trip.originLng, trip.transitLat, trip.transitLng);
+                const p1 = L.polyline(curvedPoints1, lineOptions).addTo(map);
+                const curvedPoints2 = getGreatCirclePoints(trip.transitLat, trip.transitLng, trip.destLat, trip.destLng);
+                polyline = L.polyline(curvedPoints2, lineOptions).addTo(map);
+                layersRef.current.push(p1);
+            } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
+                polyline = L.polyline(trip.routePath, lineOptions).addTo(map);
+            } else {
+                const p1 = L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(map);
+                polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(map);
+                layersRef.current.push(p1);
+            }
+            // 不在轉運點加圓點 (Marker)
         } else {
-            const straightLatLngs = [[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]];
-            polyline = L.polyline(straightLatLngs, { color: typeConfig.color, weight: 3, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null }).addTo(map);
+            // 原有邏輯：直接路徑
+            if (trip.transport === 'plane') {
+                 const curvedPoints = getGreatCirclePoints(trip.originLat, trip.originLng, trip.destLat, trip.destLng);
+                 polyline = L.polyline(curvedPoints, lineOptions).addTo(map);
+            }
+            else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
+                polyline = L.polyline(trip.routePath, lineOptions).addTo(map);
+            } else {
+                const straightLatLngs = [[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]];
+                polyline = L.polyline(straightLatLngs, lineOptions).addTo(map);
+            }
         }
 
-        // ★★★ 確保路徑在最上層 ★★★
-        polyline.bringToFront();
+        if (polyline) polyline.bringToFront();
 
         const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
         const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
         
         const dateDisplay = trip.dateStart ? `${safeDateDisplay(trip.dateStart)} ${trip.timeStart || ''}` : '';
-        polyline.bindPopup(`
+        const popupContent = `
           <div class="font-sans min-w-[200px]">
             <h3 class="font-bold text-lg mb-1">${trip.originCity} ➝ ${trip.destCity}</h3>
+            ${trip.transitCity ? `<div class="text-xs text-gray-500 mb-1">經由: ${trip.transitCity}</div>` : ''}
             <div class="text-sm text-gray-700 space-y-1">
               <p><span style="color:${typeConfig.color}">●</span> ${typeConfig.label} | ${dateDisplay}</p>
               ${trip.cost ? `<p>費用: ${trip.currency} ${trip.cost}</p>` : ''}
             </div>
           </div>
-        `);
+        `;
+        
+        if (polyline) polyline.bindPopup(popupContent);
+        if (layersRef.current.length > 0 && layersRef.current[layersRef.current.length - 1].bindPopup) {
+             // 如果有前一段路徑 (轉機)，也綁定 popup
+             layersRef.current[layersRef.current.length - 1].bindPopup(popupContent);
+        }
+
         layersRef.current.push(polyline, originMarker, destMarker);
       }
     });
@@ -1141,9 +1197,21 @@ export default function TravelMapApp() {
     map.on('click', (e) => {
       if (pickingLocationMode.current) {
         const { lat, lng } = e.latlng;
-        setFormData(prev => ({ ...prev, [pickingLocationMode.current === 'origin' ? 'originLat' : 'destLat']: lat, [pickingLocationMode.current === 'origin' ? 'originLng' : 'destLng']: lng }));
+        // 判斷是哪一種 picking
+        let fieldLat = 'originLat';
+        let fieldLng = 'originLng';
+        if (pickingLocationMode.current === 'dest') { fieldLat = 'destLat'; fieldLng = 'destLng'; }
+        if (pickingLocationMode.current === 'transit') { fieldLat = 'transitLat'; fieldLng = 'transitLng'; }
+
+        setFormData(prev => ({ ...prev, [fieldLat]: lat, [fieldLng]: lng }));
+        
         if (pickerMarkerRef.current) map.removeLayer(pickerMarkerRef.current);
-        pickerMarkerRef.current = L.circleMarker([lat, lng], { radius: 8, color: '#f97316', fillColor: '#f97316', fillOpacity: 0.8, weight: 2 }).addTo(map).bindPopup(pickingLocationMode.current === 'origin' ? "出發地" : "目的地").openPopup();
+        
+        let label = "出發地";
+        if (pickingLocationMode.current === 'dest') label = "目的地";
+        if (pickingLocationMode.current === 'transit') label = "中途轉運點";
+
+        pickerMarkerRef.current = L.circleMarker([lat, lng], { radius: 8, color: '#f97316', fillColor: '#f97316', fillOpacity: 0.8, weight: 2 }).addTo(map).bindPopup(label).openPopup();
       }
     });
 
@@ -1162,7 +1230,13 @@ export default function TravelMapApp() {
               click: (e) => {
                 if (pickingLocationMode.current) {
                   fetchCitiesForCountry(countryName, pickingLocationMode.current);
-                  setFormData(prev => ({ ...prev, [pickingLocationMode.current === 'origin' ? 'originCountry' : 'destCountry']: countryName, [pickingLocationMode.current === 'origin' ? 'originCity' : 'destCity']: '' }));
+                  // 設定對應的國家欄位
+                  let fieldCountry = 'originCountry';
+                  let fieldCity = 'originCity';
+                  if (pickingLocationMode.current === 'dest') { fieldCountry = 'destCountry'; fieldCity = 'destCity'; }
+                  if (pickingLocationMode.current === 'transit') { fieldCountry = 'transitCountry'; fieldCity = 'transitCity'; }
+
+                  setFormData(prev => ({ ...prev, [fieldCountry]: countryName, [fieldCity]: '' }));
                 } else {
                   openModal(countryName);
                 }
@@ -1170,12 +1244,9 @@ export default function TravelMapApp() {
             });
           }
         }).addTo(map);
-        // ★★★ 強制將高亮圖層移至最底層 ★★★
         geoJsonLayerRef.current.bringToBack();
       });
   }, [libLoaded, fetchCitiesForCountry, openModal]);
-
-  // ... (其餘程式碼不變) ...
 
   // Picking Listener
   useEffect(() => {
@@ -1212,15 +1283,20 @@ export default function TravelMapApp() {
     let finalRoutePath = null;
     const transportType = TRANSPORT_TYPES[formData.transport];
     
-    // ★★★ 確保路徑抓取邏輯 (開車/火車/公車都抓) ★★★
     try {
         if (transportType && transportType.useRoute && formData.originLat && formData.originLng && formData.destLat && formData.destLng) {
-            // 使用共用的 fetchRoutePath 函式
-            finalRoutePath = await fetchRoutePath(formData.originLat, formData.originLng, formData.destLat, formData.destLng);
+            // 更新 path 抓取邏輯以支援 transit
+            finalRoutePath = await fetchRoutePath(
+                formData.originLat, 
+                formData.originLng, 
+                formData.destLat, 
+                formData.destLng,
+                formData.transitLat,
+                formData.transitLng
+            );
         }
     } catch(err) {
         console.warn("路徑抓取失敗，將使用直線代替", err);
-        // 不做任何事，finalRoutePath 維持 null，之後會自動畫直線
     }
     
     const finalData = { 
@@ -1256,21 +1332,23 @@ export default function TravelMapApp() {
   };
 
   const renderCityInput = (type) => {
-    const isOrigin = type === 'origin';
-    const cities = isOrigin ? originCities : destCities;
-    const isLoading = isOrigin ? isLoadingOriginCities : isLoadingDestCities;
-    const isManual = isOrigin ? isOriginManual : isDestManual;
-    const setManual = isOrigin ? setIsOriginManual : setIsDestManual;
+    let cities, isLoading, isManual, setManual, fieldCountry, fieldCity, fieldLat, fieldLng, label, placeholder;
+
+    if (type === 'origin') {
+        cities = originCities; isLoading = isLoadingOriginCities; isManual = isOriginManual; setManual = setIsOriginManual;
+        fieldCountry = 'originCountry'; fieldCity = 'originCity'; fieldLat = 'originLat'; fieldLng = 'originLng';
+        label = '出發城市/地點'; placeholder = '例如: 台北';
+    } else if (type === 'dest') {
+        cities = destCities; isLoading = isLoadingDestCities; isManual = isDestManual; setManual = setIsDestManual;
+        fieldCountry = 'destCountry'; fieldCity = 'destCity'; fieldLat = 'destLat'; fieldLng = 'destLng';
+        label = '抵達城市/地點'; placeholder = '例如: 東京';
+    } else {
+        // Transit
+        cities = transitCities; isLoading = isLoadingTransitCities; isManual = isTransitManual; setManual = setIsTransitManual;
+        fieldCountry = 'transitCountry'; fieldCity = 'transitCity'; fieldLat = 'transitLat'; fieldLng = 'transitLng';
+        label = '中途轉運點 (選填)'; placeholder = '例如: 香港';
+    }
     
-    const fieldCountry = isOrigin ? 'originCountry' : 'destCountry';
-    const fieldCity = isOrigin ? 'originCity' : 'destCity';
-    const fieldLat = isOrigin ? 'originLat' : 'destLat';
-    const fieldLng = isOrigin ? 'originLng' : 'destLng';
-    
-    const label = isOrigin ? '出發城市/地點' : '抵達城市/地點';
-    const placeholder = isOrigin ? '例如: 台北' : '例如: 東京';
-    
-    // ★★★ 修正：檢查目前 formData 中的城市是否在下拉選單中，若不在則強制顯示 ★★★
     const currentCityValue = formData[fieldCity];
     const isCityInList = cities.some(c => c.value === currentCityValue);
     
@@ -1288,93 +1366,88 @@ export default function TravelMapApp() {
                 onChange={(e) => {
                     const newCountry = e.target.value;
                     
-                    // ★★★ 新增：如果改變的是起點國家，則同時將終點國家設為相同，並載入城市 ★★★
                     if (type === 'origin') {
+                        // 既有邏輯：起點變動連動終點
                         setFormData(prev => ({ 
                              ...prev, 
-                             originCountry: newCountry, 
-                             originCity: '', 
-                             originLat: null, 
-                             originLng: null,
-                             destCountry: newCountry, // 同步設定終點國家
-                             destCity: '', 
-                             destLat: null, 
-                             destLng: null
+                             originCountry: newCountry, originCity: '', originLat: null, originLng: null,
+                             destCountry: newCountry, destCity: '', destLat: null, destLng: null
                         }));
                         fetchCitiesForCountry(newCountry, 'origin');
-                        fetchCitiesForCountry(newCountry, 'dest'); // 同時載入終點城市清單
+                        fetchCitiesForCountry(newCountry, 'dest'); 
                     } else {
-                        // 如果是改變終點國家，則維持原樣
                         setFormData({ ...formData, [fieldCountry]: newCountry, [fieldCity]: '', [fieldLat]: null, [fieldLng]: null }); 
                         fetchCitiesForCountry(newCountry, type);
                     }
                 }}
             >
-                <option value="" disabled>請選擇國家</option>
+                <option value="">{type === 'transit' ? '無 (直達)' : '請選擇國家'}</option>
                 {allCountries.map(c => (
                     <option key={c.name} value={c.name}>{c.label}</option>
                 ))}
             </select>
         </div>
 
-        <div className="flex gap-2">
-            {!isManual ? (
-                <select
-                className="flex-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                value={currentCityValue}
-                onChange={async (e) => {
-                    if (e.target.value === 'MANUAL_ENTRY') {
-                        setManual(true);
-                        setFormData({ ...formData, [fieldCity]: '' });
-                        return;
-                    }
-                    const newCity = e.target.value;
-                    const newFormData = { ...formData, [fieldCity]: newCity };
-                    const coords = await fetchCoordinates(newCity, formData[fieldCountry]);
-                    if (coords) {
-                        newFormData[fieldLat] = coords.lat;
-                        newFormData[fieldLng] = coords.lng;
-                    }
-                    setFormData(newFormData);
-                }}
-                >
-                <option value="" disabled>請選擇城市</option>
-                {/* 顯示自動帶入的城市 (如果它還沒載入到清單中) */}
-                {!isCityInList && currentCityValue && <option value={currentCityValue}>{currentCityValue}</option>}
-                
-                {cities.map(city => (
-                    <option key={city.value} value={city.value}>{city.label}</option>
-                ))}
-                <option value="MANUAL_ENTRY" className="font-bold text-blue-600 border-t">✏️ 自行輸入...</option>
-                </select>
-            ) : (
-                <div className="flex-1 relative">
-                    <input 
-                        type="text" 
-                        placeholder={placeholder}
-                        className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                        value={formData[fieldCity]}
-                        onChange={e => setFormData({...formData, [fieldCity]: e.target.value})}
-                    />
-                    <button 
-                        type="button"
-                        onClick={() => { setManual(false); }}
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-blue-600 bg-white px-2 py-1 rounded border hover:bg-gray-50"
+        {/* 只有在選了國家後才顯示城市選擇 */}
+        {formData[fieldCountry] && (
+            <div className="flex gap-2">
+                {!isManual ? (
+                    <select
+                    className="flex-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                    value={currentCityValue}
+                    onChange={async (e) => {
+                        if (e.target.value === 'MANUAL_ENTRY') {
+                            setManual(true);
+                            setFormData({ ...formData, [fieldCity]: '' });
+                            return;
+                        }
+                        const newCity = e.target.value;
+                        const newFormData = { ...formData, [fieldCity]: newCity };
+                        const coords = await fetchCoordinates(newCity, formData[fieldCountry]);
+                        if (coords) {
+                            newFormData[fieldLat] = coords.lat;
+                            newFormData[fieldLng] = coords.lng;
+                        }
+                        setFormData(newFormData);
+                    }}
                     >
-                        選單
-                    </button>
-                </div>
-            )}
+                    <option value="" disabled>請選擇城市</option>
+                    {!isCityInList && currentCityValue && <option value={currentCityValue}>{currentCityValue}</option>}
+                    
+                    {cities.map(city => (
+                        <option key={city.value} value={city.value}>{city.label}</option>
+                    ))}
+                    <option value="MANUAL_ENTRY" className="font-bold text-blue-600 border-t">✏️ 自行輸入...</option>
+                    </select>
+                ) : (
+                    <div className="flex-1 relative">
+                        <input 
+                            type="text" 
+                            placeholder={placeholder}
+                            className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            value={formData[fieldCity]}
+                            onChange={e => setFormData({...formData, [fieldCity]: e.target.value})}
+                        />
+                        <button 
+                            type="button"
+                            onClick={() => { setManual(false); }}
+                            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-blue-600 bg-white px-2 py-1 rounded border hover:bg-gray-50"
+                        >
+                            選單
+                        </button>
+                    </div>
+                )}
 
-          <button 
-            type="button"
-            onClick={() => startPicking(isOrigin ? 'origin' : 'dest')}
-            className={`p-2 rounded border ${formData[fieldLat] ? 'bg-green-100 text-green-700 border-green-300' : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-100'}`}
-            title="在地圖上標記位置 (同時切換國家)"
-          >
-            <MapPin size={20} />
-          </button>
-        </div>
+            <button 
+                type="button"
+                onClick={() => startPicking(type)}
+                className={`p-2 rounded border ${formData[fieldLat] ? 'bg-green-100 text-green-700 border-green-300' : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-100'}`}
+                title="在地圖上標記位置"
+            >
+                <MapPin size={20} />
+            </button>
+            </div>
+        )}
         {formData[fieldLat] && <span className="text-xs text-green-600 flex items-center gap-1"><Check size={10} /> 已設定座標</span>}
       </div>
     );
@@ -1388,12 +1461,14 @@ export default function TravelMapApp() {
           <Map className="w-6 h-6" />
           <div>
               <h1 className="text-xl font-bold tracking-wide">🗺️歐洲交換趴趴走</h1>
-              {currentMapId && (
-                  <div className="text-xs opacity-70 flex items-center gap-1">
-                      ID: <span className="font-mono bg-blue-800 px-1 rounded">{currentMapId}</span>
-                      <button onClick={handleShare} className="hover:text-yellow-300 ml-1" title="複製連結"><Share2 size={12}/></button>
+              {/* 新增：統計數據顯示 */}
+              <div className="flex flex-col sm:flex-row gap-1 sm:gap-3 text-xs opacity-90 mt-1">
+                  {currentMapId && <div className="font-mono bg-blue-800 px-1.5 rounded inline-block">ID: {currentMapId}</div>}
+                  <div className="flex gap-2">
+                      <span className="flex items-center gap-1">🚩 造訪 {stats.countries} 國</span>
+                      <span className="flex items-center gap-1">🏙️ {stats.cities} 城市</span>
                   </div>
-              )}
+              </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -1473,9 +1548,22 @@ export default function TravelMapApp() {
                   </div>
                   
                   <div className="flex items-center gap-2 text-sm font-semibold mb-1">
-                    <div className="truncate max-w-[100px]" title={trip.originCity}>{trip.originCity}</div>
-                    <span className="text-gray-400">➝</span>
-                    <div className="truncate max-w-[100px]" title={trip.destCity}>{trip.destCity}</div>
+                    <div className="truncate max-w-[80px]" title={trip.originCity}>{trip.originCity}</div>
+                    
+                    {/* 顯示轉機資訊 */}
+                    {trip.transitCity ? (
+                        <>
+                            <span className="text-gray-400 text-xs">➝</span>
+                            <div className="bg-gray-100 px-1 rounded text-xs text-gray-600 truncate max-w-[60px]" title={`轉機: ${trip.transitCity}`}>
+                                {trip.transitCity}
+                            </div>
+                            <span className="text-gray-400 text-xs">➝</span>
+                        </>
+                    ) : (
+                        <span className="text-gray-400">➝</span>
+                    )}
+
+                    <div className="truncate max-w-[80px]" title={trip.destCity}>{trip.destCity}</div>
                   </div>
 
                   {trip.targetCountry && (
@@ -1525,7 +1613,9 @@ export default function TravelMapApp() {
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-blue-600 text-white px-6 py-3 rounded-full shadow-xl animate-bounce flex items-center gap-2 pointer-events-none">
             <MapPin size={20} />
             <span className="font-bold">請在地圖上點擊位置</span>
-            <span className="text-sm opacity-90 ml-2">({pickingLocationMode.current === 'origin' ? '出發地' : '目的地'})</span>
+            <span className="text-sm opacity-90 ml-2">
+                ({pickingLocationMode.current === 'origin' ? '出發地' : pickingLocationMode.current === 'dest' ? '目的地' : '轉運點'})
+            </span>
           </div>
         )}
 
@@ -1572,13 +1662,23 @@ export default function TravelMapApp() {
                     <h3 className="font-bold text-gray-600 flex items-center gap-2">
                         <MapPin size={18} /> 旅程起訖點
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {renderCityInput('origin')}
-                        {renderCityInput('dest')}
+                    
+                    {/* 出發地 */}
+                    {renderCityInput('origin')}
+                    
+                    {/* 新增：中途轉運點 (選填) */}
+                    <div className="pl-4 border-l-2 border-dashed border-gray-300 ml-2 relative">
+                        <div className="absolute -left-[9px] top-1/2 -translate-y-1/2 bg-gray-100 text-gray-400 rounded-full p-0.5">
+                            <ArrowRight size={12} />
+                        </div>
+                        {renderCityInput('transit')}
                     </div>
+
+                    {/* 目的地 */}
+                    {renderCityInput('dest')}
                 </div>
 
-                {/* 時間與交通 (修正為獨立區塊，不再是左右並排) */}
+                {/* 時間與交通 */}
                 <div className="space-y-6">
                     {/* 時間設定 */}
                     <div className="bg-gray-50 p-4 rounded-xl space-y-4 border border-gray-100">
