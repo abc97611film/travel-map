@@ -56,6 +56,22 @@ const fetchCoordinates = async (city, country) => {
           return { lat: 34.033333, lng: -5.000000 };
     }
 
+    // 特別處理 馬爾他騎士團 (Sovereign Military Order of Malta) 的座標
+    if (city.includes("Magistral Palace") || city.includes("馬爾他宮")) {
+        // 41°54′19″N 12°28′50″E => 41.905278, 12.480556
+        return { lat: 41.905278, lng: 12.480556 };
+    }
+    if (city.includes("Magistral Villa") || city.includes("馬爾他部")) {
+        // 41°52'58.6"N 12°28'41.5"E => 41.882944, 12.478194
+        return { lat: 41.882944, lng: 12.478194 };
+    }
+
+    // 特別處理 蒙地卡羅 (Monte Carlo) 的座標
+    if (city.includes("Monte Carlo") || city.includes("蒙地卡羅")) {
+        // 43°44'15.4"N 7°25'13.3"E => 43.737611, 7.420361
+        return { lat: 43.737611, lng: 7.420361 };
+    }
+
     try {
       const query = `${city.split(' (')[0]}, ${country}`;
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
@@ -125,6 +141,7 @@ const COUNTRY_TRANSLATIONS = {
   "Sweden": "瑞典", "Switzerland": "瑞士", "Turkey": "土耳其", "Ukraine": "烏克蘭", 
   "United Kingdom": "英國", "Vatican City": "梵蒂岡", "Jersey": "澤西島", "Guernsey": "根西島",
   "Isle of Man": "曼島", "England": "英國",
+  "Sovereign Military Order of Malta": "馬爾他騎士團",
 
   // === 中東與北非 (MENA) ===
   "Algeria": "阿爾及利亞", "Bahrain": "巴林", "Egypt": "埃及", "Iran": "伊朗", "Iraq": "伊拉克", 
@@ -175,7 +192,13 @@ const CITY_TRANSLATIONS = {
   "Prague": "布拉格", "Cesky Krumlov": "庫倫洛夫", "Budapest": "布達佩斯", "Warsaw": "華沙", "Krakow": "克拉科夫",
   "Stockholm": "斯德哥爾摩", "Copenhagen": "哥本哈根", "Oslo": "奧斯陸", "Helsinki": "赫爾辛基", "Athens": "雅典",
   "New York": "紐約", "Los Angeles": "洛杉磯", "San Francisco": "舊金山", "Toronto": "多倫多", "Vancouver": "溫哥華",
-  "Sydney": "雪梨", "Melbourne": "墨爾本", "Bangkok": "曼谷", "Singapore": "新加坡"
+  "Sydney": "雪梨", "Melbourne": "墨爾本", "Bangkok": "曼谷", "Singapore": "新加坡",
+  
+  // 馬爾他騎士團
+  "Magistral Palace": "馬爾他宮", "Magistral Villa": "馬爾他部",
+  
+  // 摩納哥
+  "Monte Carlo": "蒙地卡羅"
 };
 
 const PREDEFINED_CITIES = {
@@ -186,6 +209,8 @@ const PREDEFINED_CITIES = {
   "Bosnia and Herzegovina": ["Sarajevo", "Mostar", "Banja Luka", "Tuzla", "Zenica"],
   "Albania": ["Tirana", "Durres", "Vlore", "Shkoder", "Sarande"],
   "Morocco": ["Merzouga", "Casablanca", "Rabat", "Marrakech", "Fes", "Tangier", "Chefchaouen", "Essaouira", "Ouarzazate"],
+  "Sovereign Military Order of Malta": ["Magistral Palace", "Magistral Villa"],
+  "Monaco": ["Monte Carlo"],
 };
 
 // 格式化顯示名稱：中文 (英文)
@@ -2012,227 +2037,6 @@ export default function TravelMapApp() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* 匯出設定 Modal (預覽版) */}
-      {isExportModalOpen && (
-        <div className="fixed inset-0 z-[2500] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col h-[90vh] animate-in fade-in zoom-in duration-200">
-                {/* Header */}
-                <div className="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-xl">
-                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                        <ImageIcon size={24} className="text-blue-600"/> 匯出地圖預覽
-                    </h2>
-                    <button onClick={() => { setIsExportModalOpen(false); setShowExportPreview(false); }} className="text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-2 rounded-full">
-                        <X size={24} />
-                    </button>
-                </div>
-
-                {/* Body */}
-                <div className="flex-1 flex overflow-hidden">
-                    {/* 設定欄 */}
-                    <div className="w-80 border-r bg-gray-50 p-6 space-y-6 overflow-y-auto">
-                        <div className="bg-blue-100 p-4 rounded-lg text-sm text-blue-800">
-                            <p>💡 此為匯出圖片的預覽。請等待地圖圖資完全載入後，再點擊下載按鈕。</p>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">設定日期區間</label>
-                            <div className="space-y-2">
-                                <div>
-                                    <label className="text-xs text-gray-500 block mb-1">開始日期</label>
-                                    <input 
-                                        type="date" 
-                                        className="w-full p-2 border rounded"
-                                        value={exportStartDate}
-                                        onChange={(e) => setExportStartDate(e.target.value)}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs text-gray-500 block mb-1">結束日期</label>
-                                    <input 
-                                        type="date" 
-                                        className="w-full p-2 border rounded"
-                                        value={exportEndDate}
-                                        onChange={(e) => setExportEndDate(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                        
-                        {(exportStartDate || exportEndDate) && (
-                            <button 
-                                onClick={() => { setExportStartDate(''); setExportEndDate(''); }}
-                                className="text-xs text-blue-600 hover:underline"
-                            >
-                                清除日期 (匯出全部)
-                            </button>
-                        )}
-                        
-                        <div className="pt-6 border-t">
-                            <button 
-                                onClick={downloadImage}
-                                disabled={isCapturing}
-                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-wait"
-                            >
-                                {isCapturing ? (
-                                    <>
-                                        <Loader className="animate-spin" size={18} />
-                                        處理中...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Download size={18} />
-                                        下載圖片
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* 預覽區 (4:3) */}
-                    <div className="flex-1 bg-slate-200 flex items-center justify-center p-8 overflow-hidden relative">
-                        {/* 這個 div 是用來掛載預覽地圖的 */}
-                        <div 
-                            style={{ width: '480px', height: '360px', position: 'relative', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }} // 縮小的容器
-                        >
-                            <div ref={exportPreviewRef} className="w-full h-full bg-white relative overflow-hidden" />
-                            
-                            {/* Loading Overlay within preview */}
-                            {isCapturing && (
-                                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-50 flex items-center justify-center">
-                                    <span className="font-bold text-blue-800">截圖中...</span>
-                                </div>
-                            )}
-                        </div>
-                        <div className="absolute bottom-4 text-xs text-gray-500">
-                            預覽已縮小顯示，實際下載為 1200x900 高解析度圖片
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {/* ID 輸入 Modal - 分頁設計 */}
-      {isIdModalOpen && (
-          <div className="fixed inset-0 z-[3000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
-              
-              {/* Tabs */}
-              <div className="flex border-b">
-                <button 
-                  onClick={() => { setIdMode('enter'); setIdError(''); }}
-                  className={`flex-1 py-4 font-bold text-center transition-colors ${idMode === 'enter' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <LogIn size={18} /> 進入我的地圖
-                  </div>
-                </button>
-                <button 
-                  onClick={() => { setIdMode('create'); setIdError(''); }}
-                  className={`flex-1 py-4 font-bold text-center transition-colors ${idMode === 'create' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <PlusCircle size={18} /> 建立新地圖
-                  </div>
-                </button>
-              </div>
-
-              <div className="p-8">
-                <div className="text-center mb-6">
-                  <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
-                    <Globe size={32} />
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-800">
-                    {idMode === 'enter' ? '歡迎回來！' : '開始新的旅程'}
-                  </h2>
-                  <p className="text-gray-500 mt-2 text-sm">
-                    {idMode === 'enter' 
-                      ? '請輸入 ID 與密碼以進入您的地圖' 
-                      : '請設定專屬 ID 與密碼來建立新地圖'}
-                  </p>
-                </div>
-                
-                <form onSubmit={handleIdSubmit} className="space-y-4">
-                  {/* ID Input */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">地圖 ID (英文或數字)</label>
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="例如: my-trip-2025"
-                      className={`w-full p-4 border-2 rounded-xl text-lg outline-none transition-colors ${idError ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-blue-500'}`}
-                      value={tempMapIdInput}
-                      onChange={(e) => {
-                          setTempMapIdInput(e.target.value);
-                          setIdError('');
-                      }}
-                    />
-                  </div>
-
-                  {/* Password Input */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">
-                      {idMode === 'enter' ? '輸入密碼' : '設定密碼 (4-6位數字)'}
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                      <input 
-                        type={showPassword ? "text" : "password"} 
-                        required
-                        placeholder="••••••"
-                        maxLength={6}
-                        className={`w-full pl-12 pr-12 p-4 border-2 rounded-xl text-lg outline-none transition-colors ${idError ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-blue-500'}`}
-                        value={tempPasswordInput}
-                        onChange={(e) => {
-                            // Only allow numbers
-                            const val = e.target.value.replace(/\D/g, '');
-                            setTempPasswordInput(val);
-                            setIdError('');
-                        }}
-                      />
-                      <button 
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      >
-                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* 記住密碼 Checkbox */}
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="checkbox" 
-                      id="rememberMe"
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                    />
-                    <label htmlFor="rememberMe" className="text-sm text-gray-600 cursor-pointer select-none">記住 ID 與密碼 (下次自動登入)</label>
-                  </div>
-
-                  {idError && <p className="text-red-500 text-sm font-bold text-center bg-red-50 p-2 rounded">{idError}</p>}
-                  
-                  <button 
-                    type="submit"
-                    disabled={isCheckingId}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {isCheckingId ? <Loader className="animate-spin" /> : (idMode === 'enter' ? '進入地圖 ➔' : '建立地圖 🚀')}
-                  </button>
-                </form>
-                
-                <div className="mt-6 text-center bg-blue-50 p-3 rounded-lg">
-                  <p className="text-xs text-blue-600 font-medium">
-                    💡 請牢記您的 ID 與密碼，遺失無法找回！
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
       )}
 
       {/* 刪除確認 Modal */}
