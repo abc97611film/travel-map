@@ -1175,6 +1175,8 @@ export default function TravelMapApp() {
       });
   }, [libLoaded, fetchCitiesForCountry, openModal]);
 
+  // ... (其餘程式碼不變) ...
+
   // Picking Listener
   useEffect(() => {
     if (!mapInstanceRef.current) return;
