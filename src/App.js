@@ -1463,7 +1463,12 @@ export default function TravelMapApp() {
               <h1 className="text-xl font-bold tracking-wide">🗺️歐洲交換趴趴走</h1>
               {/* 新增：統計數據顯示 */}
               <div className="flex flex-col sm:flex-row gap-1 sm:gap-3 text-xs opacity-90 mt-1">
-                  {currentMapId && <div className="font-mono bg-blue-800 px-1.5 rounded inline-block">ID: {currentMapId}</div>}
+                  {currentMapId && (
+                    <div className="flex items-center gap-1">
+                        <div className="font-mono bg-blue-800 px-1.5 rounded inline-block">ID: {currentMapId}</div>
+                        <button onClick={handleShare} className="hover:text-yellow-300" title="複製連結"><Share2 size={12}/></button>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                       <span className="flex items-center gap-1">🚩 造訪 {stats.countries} 國</span>
                       <span className="flex items-center gap-1">🏙️ {stats.cities} 城市</span>
