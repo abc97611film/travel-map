@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, Coins, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon } from 'lucide-react';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 與 html2canvas，以相容預覽環境與本機環境
 
@@ -35,6 +35,39 @@ const getGreatCirclePoints = (startLat, startLng, endLat, endLng, numPoints = 10
   }
   return points;
 };
+
+const safeDateDisplay = (date) => {
+    if (!date) return '';
+    if (typeof date === 'string') return date;
+    if (date?.toDate) return date.toDate().toLocaleDateString();
+    return String(date);
+};
+
+const fetchCoordinates = async (city, country) => {
+    // 特別處理 Merzouga (梅爾祖卡) 的座標
+    if (city.includes("Merzouga") || city.includes("梅爾祖卡")) {
+       // 31°04'48.2"N 4°00'42.7"W => 31.080056, -4.011861
+       return { lat: 31.080056, lng: -4.011861 };
+    }
+    
+    // 特別處理 Fes (費茲) 的座標
+    if (city.includes("Fes") || city.includes("費茲")) {
+          // 34.033333, -5.000000
+          return { lat: 34.033333, lng: -5.000000 };
+    }
+
+    try {
+      const query = `${city.split(' (')[0]}, ${country}`;
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+      const data = await res.json();
+      if (data && data.length > 0) {
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      }
+    } catch (e) {
+      console.error("Geocoding error:", e);
+    }
+    return null;
+  };
 
 // -----------------------------------------------------------------------------
 // 1. Firebase 初始化
@@ -316,19 +349,11 @@ export default function TravelMapApp() {
   const exportPreviewRef = useRef(null); // 預覽容器 ref
   const mapInstanceRef = useRef(null);
   const geoJsonLayerRef = useRef(null);
-  const worldGeoJsonRef = useRef(null); // 儲存原始 GeoJSON 資料供匯出使用
   const layersRef = useRef([]); 
   const pickerMarkerRef = useRef(null);
   const pickingLocationMode = useRef(null);
   const latestDataRef = useRef({ trips: [], allCountries: [] });
   const visitedCountriesRef = useRef(new Set()); // 用於高亮邏輯
-
-  const safeDateDisplay = (date) => {
-    if (!date) return '';
-    if (typeof date === 'string') return date;
-    if (date?.toDate) return date.toDate().toLocaleDateString();
-    return String(date);
-  };
 
   useEffect(() => {
     latestDataRef.current = { trips, allCountries };
@@ -892,33 +917,7 @@ export default function TravelMapApp() {
       }
   };
 
-  const fetchCoordinates = async (city, country) => {
-    // 特別處理 Merzouga (梅爾祖卡) 的座標
-    if (city.includes("Merzouga") || city.includes("梅爾祖卡")) {
-       // 31°04'48.2"N 4°00'42.7"W => 31.080056, -4.011861
-       return { lat: 31.080056, lng: -4.011861 };
-    }
-    
-    // 特別處理 Fes (費茲) 的座標
-    if (city.includes("Fes") || city.includes("費茲")) {
-          // 34.033333, -5.000000
-          return { lat: 34.033333, lng: -5.000000 };
-    }
-
-    try {
-      const query = `${city.split(' (')[0]}, ${country}`;
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
-      const data = await res.json();
-      if (data && data.length > 0) {
-        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-      }
-    } catch (e) {
-      console.error("Geocoding error:", e);
-    }
-    return null;
-  };
-
-  const fetchCitiesForCountry = async (country, type) => {
+  const fetchCitiesForCountry = useCallback(async (country, type) => {
     if (!country) return;
     const setCities = type === 'origin' ? setOriginCities : setDestCities;
     const setLoading = type === 'origin' ? setIsLoadingOriginCities : setIsLoadingDestCities;
@@ -964,9 +963,9 @@ export default function TravelMapApp() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const startPicking = (type) => {
+  const startPicking = useCallback((type) => {
     pickingLocationMode.current = type;
     setIsModalOpen(false); 
     setIsPickingMode(true);
@@ -974,9 +973,9 @@ export default function TravelMapApp() {
     style.id = 'map-cursor-style';
     style.innerHTML = `.leaflet-container { cursor: crosshair !important; }`;
     document.head.appendChild(style);
-  };
+  }, []);
 
-  const openModal = (countryName = '', tripToEdit = null) => {
+  const openModal = useCallback((countryName = '', tripToEdit = null) => {
     try {
         if (mapInstanceRef.current && pickerMarkerRef.current) {
             mapInstanceRef.current.removeLayer(pickerMarkerRef.current);
@@ -1052,9 +1051,9 @@ export default function TravelMapApp() {
         });
         setIsModalOpen(true);
     }
-  };
+  }, [fetchCitiesForCountry]);
 
-  const renderMapLayers = (tripsToRender) => {
+  const renderMapLayers = useCallback((tripsToRender) => {
     if (!mapInstanceRef.current || !window.L) return;
     const map = mapInstanceRef.current;
     const L = window.L;
@@ -1122,13 +1121,13 @@ export default function TravelMapApp() {
         layersRef.current.push(polyline, originMarker, destMarker);
       }
     });
-  };
+  }, []);
 
   useEffect(() => {
     if (!loading && mapLoaded) { 
         renderMapLayers(trips);
     }
-  }, [trips, loading, mapLoaded]);
+  }, [trips, loading, mapLoaded, renderMapLayers]);
 
   // Map Init Effect
   useEffect(() => {
@@ -1174,7 +1173,7 @@ export default function TravelMapApp() {
         // ★★★ 強制將高亮圖層移至最底層 ★★★
         geoJsonLayerRef.current.bringToBack();
       });
-  }, [libLoaded]);
+  }, [libLoaded, fetchCitiesForCountry, openModal]);
 
   // Picking Listener
   useEffect(() => {
