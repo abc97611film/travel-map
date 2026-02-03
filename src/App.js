@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight } from 'lucide-react';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 與 html2canvas，以相容預覽環境與本機環境
 
@@ -347,6 +347,7 @@ export default function TravelMapApp() {
 
   // 統計數據
   const [stats, setStats] = useState({ countries: 0, cities: 0 });
+  const [showMobileStats, setShowMobileStats] = useState(false); // 控制手機版統計卡片
 
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
@@ -1470,19 +1471,12 @@ export default function TravelMapApp() {
           <Map className="w-6 h-6" />
           <div>
               <h1 className="text-xl font-bold tracking-wide">🗺️歐洲交換趴趴走</h1>
-              {/* 新增：統計數據顯示 */}
-              <div className="flex flex-col sm:flex-row gap-1 sm:gap-3 text-xs opacity-90 mt-1">
-                  {currentMapId && (
-                    <div className="flex items-center gap-1">
-                        <div className="font-mono bg-blue-800 px-1.5 rounded inline-block">ID: {currentMapId}</div>
-                        <button onClick={handleShare} className="hover:text-yellow-300" title="複製連結"><Share2 size={12}/></button>
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                      <span className="flex items-center gap-1">🚩 造訪 {stats.countries} 國</span>
-                      <span className="flex items-center gap-1">🏙️ {stats.cities} 城市</span>
-                  </div>
-              </div>
+              {currentMapId && (
+                <div className="flex items-center gap-1 mt-1">
+                    <div className="font-mono bg-blue-800 px-1.5 rounded inline-block text-xs opacity-90">ID: {currentMapId}</div>
+                    <button onClick={handleShare} className="hover:text-yellow-300" title="複製連結"><Share2 size={12}/></button>
+                </div>
+              )}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -1636,6 +1630,46 @@ export default function TravelMapApp() {
         <div className="w-full h-full z-0 bg-slate-200 relative flex flex-col">
           <div ref={mapContainerRef} className="flex-1 relative" />
           
+          {/* 懸浮統計卡片 */}
+          <div className="absolute top-4 right-4 z-[400] flex flex-col items-end pointer-events-none">
+            
+            {/* Toggle Button (Mobile Only) */}
+            <button 
+                onClick={() => setShowMobileStats(!showMobileStats)}
+                className="pointer-events-auto md:hidden bg-white p-3 rounded-full shadow-xl text-blue-600 border border-blue-100 mb-2 hover:bg-gray-50 active:scale-95 transition-transform"
+                title="顯示統計"
+            >
+                <Trophy size={20} />
+            </button>
+
+            {/* Stats Card */}
+            <div className={`
+                pointer-events-auto
+                bg-white/95 backdrop-blur p-4 rounded-xl shadow-2xl border border-white/50
+                transform transition-all duration-300 origin-top-right
+                ${showMobileStats ? 'scale-100 opacity-100 translate-y-0' : 'scale-90 opacity-0 -translate-y-4 pointer-events-none absolute right-0 top-12'}
+                md:static md:scale-100 md:opacity-100 md:translate-y-0 md:pointer-events-auto
+            `}>
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
+                    <div className="bg-yellow-100 p-1.5 rounded-full">
+                        <Trophy size={14} className="text-yellow-600" />
+                    </div>
+                    <span className="font-bold text-gray-700 text-sm">旅程足跡</span>
+                </div>
+                
+                <div className="space-y-3 min-w-[140px]">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">已造訪國家</span>
+                        <span className="font-bold text-lg text-blue-600">{stats.countries}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">已造訪城市</span>
+                        <span className="font-bold text-lg text-indigo-600">{stats.cities}</span>
+                    </div>
+                </div>
+            </div>
+          </div>
+
           <div className="absolute bottom-6 right-6 z-[400] bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-xl border border-gray-200">
              <h4 className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider border-b pb-1">交通方式</h4>
              <div className="space-y-2">
