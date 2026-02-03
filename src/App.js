@@ -750,7 +750,16 @@ export default function TravelMapApp() {
             return res.json();
         })
         .then(data => {
-            const visitedCountries = visitedCountriesRef.current;
+            // ★★★ 修正：只計算「篩選後的行程」所涉及的國家 ★★★
+            const visitedCountriesForExport = new Set();
+            filteredTrips.forEach(t => {
+                if (t.originCountry) visitedCountriesForExport.add(t.originCountry);
+                if (t.destCountry) visitedCountriesForExport.add(t.destCountry);
+                if (t.targetCountry) visitedCountriesForExport.add(t.targetCountry);
+                // 注意：依照需求，不加入 transitCountry
+            });
+            // 依照慣例移除台灣 (視為 Home)
+            visitedCountriesForExport.delete('Taiwan');
             
             const geoJsonLayer = L.geoJSON(data, {
                 style: { fillColor: '#cbd5e1', weight: 1, opacity: 1, color: 'white', fillOpacity: 0.5 },
@@ -773,7 +782,7 @@ export default function TravelMapApp() {
                         countryName = nameMapping[countryName];
                     }
 
-                    if (visitedCountries.has(countryName)) {
+                    if (visitedCountriesForExport.has(countryName)) {
                         layer.setStyle({ fillColor: '#fcd34d', fillOpacity: 0.8, weight: 1 });
                     }
                 }
@@ -841,8 +850,8 @@ export default function TravelMapApp() {
     });
 
     if (hasData && bounds.isValid()) {
-        // ★★★ 關鍵修正：將 padding 設為極小，確保最大化顯示路徑範圍，縮小無關區域 ★★★
-        exportMap.fitBounds(bounds, { padding: [10, 10] });
+        // ★★★ 修正：增加 padding 讓點與線不要貼死邊緣 (原本是 [10, 10]，改為 [50, 50]) ★★★
+        exportMap.fitBounds(bounds, { padding: [50, 50] });
     } else {
         exportMap.setView([48, 15], 4);
     }
