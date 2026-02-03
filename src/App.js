@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy } from 'lucide-react';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy, List } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 與 html2canvas，以相容預覽環境與本機環境
 
@@ -347,7 +347,9 @@ export default function TravelMapApp() {
 
   // 統計數據
   const [stats, setStats] = useState({ countries: 0, cities: 0 });
+  const [detailedStats, setDetailedStats] = useState({ countryList: [], cityList: [] }); // 新增詳細列表
   const [showMobileStats, setShowMobileStats] = useState(false); // 控制手機版統計卡片
+  const [isStatsListOpen, setIsStatsListOpen] = useState(false); // 新增：控制統計列表 Modal
 
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
@@ -377,7 +379,7 @@ export default function TravelMapApp() {
     const today = new Date().toISOString().split('T')[0];
     const activeTrips = trips.filter(t => t.dateStart && t.dateStart <= today);
     const countries = new Set();
-    const cities = new Set();
+    const cities = new Set(); // 使用 Set 避免重複: "City, Country"
 
     activeTrips.forEach(t => {
         if (t.targetCountry) countries.add(t.targetCountry);
@@ -385,8 +387,8 @@ export default function TravelMapApp() {
         if (t.originCountry) countries.add(t.originCountry);
         
         // 統計城市 (排除轉機)
-        if (t.originCity && t.originCountry !== 'Taiwan') cities.add(`${t.originCity},${t.originCountry}`);
-        if (t.destCity && t.destCountry !== 'Taiwan') cities.add(`${t.destCity},${t.destCountry}`);
+        if (t.originCity && t.originCountry !== 'Taiwan') cities.add(`${t.originCity} (${t.originCountry})`);
+        if (t.destCity && t.destCountry !== 'Taiwan') cities.add(`${t.destCity} (${t.destCountry})`);
     });
 
     // 移除台灣
@@ -399,6 +401,12 @@ export default function TravelMapApp() {
     setStats({
         countries: countries.size,
         cities: cities.size
+    });
+    
+    // 更新詳細列表
+    setDetailedStats({
+        countryList: Array.from(countries).sort().map(c => getDisplayCountryName(c)),
+        cityList: Array.from(cities).sort()
     });
 
   }, [trips, allCountries]);
@@ -742,6 +750,67 @@ export default function TravelMapApp() {
             return t.dateStart >= exportStartDate && t.dateStart <= exportEndDate;
         });
     }
+
+    // ★★★ 匯出用的統計資料計算 ★★★
+    const exportStats = { countries: 0, cities: 0 };
+    const exportCountriesSet = new Set();
+    const exportCitiesSet = new Set();
+    
+    filteredTrips.forEach(t => {
+        if (t.originCountry) exportCountriesSet.add(t.originCountry);
+        if (t.destCountry) exportCountriesSet.add(t.destCountry);
+        if (t.targetCountry) exportCountriesSet.add(t.targetCountry);
+        
+        if (t.originCity && t.originCountry !== 'Taiwan') exportCitiesSet.add(`${t.originCity},${t.originCountry}`);
+        if (t.destCity && t.destCountry !== 'Taiwan') exportCitiesSet.add(`${t.destCity},${t.destCountry}`);
+    });
+    exportCountriesSet.delete('Taiwan');
+    exportStats.countries = exportCountriesSet.size;
+    exportStats.cities = exportCitiesSet.size;
+
+    // ★★★ 建立匯出圖上的統計卡片 (手動 DOM) ★★★
+    const statsCard = document.createElement('div');
+    statsCard.style.position = 'absolute';
+    statsCard.style.top = '20px';
+    statsCard.style.right = '20px';
+    statsCard.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+    statsCard.style.padding = '15px';
+    statsCard.style.borderRadius = '12px';
+    statsCard.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.2)';
+    statsCard.style.zIndex = '1000';
+    statsCard.style.fontFamily = 'sans-serif';
+    statsCard.style.minWidth = '160px';
+    statsCard.style.border = '1px solid rgba(255, 255, 255, 0.5)';
+    statsCard.style.backdropFilter = 'blur(4px)';
+
+    statsCard.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">
+            <div style="background-color: #fef9c3; padding: 6px; border-radius: 9999px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+                    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+                    <path d="M4 22h16"></path>
+                    <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+                    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+                    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
+                </svg>
+            </div>
+            <span style="font-weight: bold; color: #374151; font-size: 14px;">旅程足跡</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 12px; color: #6b7280;">已造訪國家</span>
+                <span style="font-weight: bold; font-size: 18px; color: #2563eb;">${exportStats.countries}</span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 12px; color: #6b7280;">已造訪城市</span>
+                <span style="font-weight: bold; font-size: 18px; color: #4f46e5;">${exportStats.cities}</span>
+            </div>
+        </div>
+    `;
+    // 將卡片加入 mapWrapper，使其位於地圖之上
+    mapWrapper.appendChild(statsCard);
+
 
     // 加入 GeoJSON (國界)
     // 使用 fetch 確保載入，並處理錯誤
@@ -1630,7 +1699,7 @@ export default function TravelMapApp() {
         <div className="w-full h-full z-0 bg-slate-200 relative flex flex-col">
           <div ref={mapContainerRef} className="flex-1 relative" />
           
-          {/* 懸浮統計卡片 */}
+          {/* 懸浮統計卡片 (右上角) */}
           <div className="absolute top-4 right-4 z-[400] flex flex-col items-end pointer-events-none">
             
             {/* Toggle Button (Mobile Only) */}
@@ -1650,11 +1719,20 @@ export default function TravelMapApp() {
                 ${showMobileStats ? 'scale-100 opacity-100 translate-y-0' : 'scale-90 opacity-0 -translate-y-4 pointer-events-none absolute right-0 top-12'}
                 md:static md:scale-100 md:opacity-100 md:translate-y-0 md:pointer-events-auto
             `}>
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
-                    <div className="bg-yellow-100 p-1.5 rounded-full">
-                        <Trophy size={14} className="text-yellow-600" />
+                <div className="flex items-center justify-between gap-4 mb-3 pb-2 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-yellow-100 p-1.5 rounded-full">
+                            <Trophy size={14} className="text-yellow-600" />
+                        </div>
+                        <span className="font-bold text-gray-700 text-sm">旅程足跡</span>
                     </div>
-                    <span className="font-bold text-gray-700 text-sm">旅程足跡</span>
+                    {/* 清單按鈕 */}
+                    <button 
+                        onClick={() => setIsStatsListOpen(true)}
+                        className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                    >
+                        <List size={12} /> 清單
+                    </button>
                 </div>
                 
                 <div className="space-y-3 min-w-[140px]">
@@ -1689,6 +1767,44 @@ export default function TravelMapApp() {
         </div>
       </div>
       
+      {/* 統計列表 Modal */}
+      {isStatsListOpen && (
+        <div className="fixed inset-0 z-[2200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col animate-in fade-in zoom-in duration-200">
+                <div className="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-xl">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                        <Trophy size={18} className="text-yellow-600" /> 足跡清單
+                    </h3>
+                    <button onClick={() => setIsStatsListOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-200">
+                        <X size={20} />
+                    </button>
+                </div>
+                <div className="p-4 overflow-y-auto">
+                    <div className="mb-6">
+                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">已造訪國家 ({detailedStats.countryList.length})</h4>
+                        <div className="flex flex-wrap gap-2">
+                            {detailedStats.countryList.map(c => (
+                                <span key={c} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-sm border border-blue-100">
+                                    {c}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">已造訪城市 ({detailedStats.cityList.length})</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                            {detailedStats.cityList.map(c => (
+                                <div key={c} className="text-sm text-gray-700 bg-gray-50 px-2 py-1.5 rounded border border-gray-100 truncate" title={c}>
+                                    {c}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
       {/* 新增/編輯旅程 Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
