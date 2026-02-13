@@ -168,6 +168,39 @@ const COUNTRY_TRANSLATIONS = {
   "Nigeria": "奈及利亞", "Ghana": "迦納", "Madagascar": "馬達加斯加", "Sudan": "蘇丹"
 };
 
+const CITY_TRANSLATIONS = {
+  // 北馬其頓 (North Macedonia)
+  "Skopje": "史科普耶", "Ohrid": "奧赫里德", "Bitola": "比托拉", "Kumanovo": "庫馬諾沃", 
+  "Prilep": "普里萊普", "Tetovo": "泰托沃", "Veles": "韋萊斯", "Stip": "什蒂普", 
+  "Gostivar": "戈斯蒂瓦爾", "Strumica": "斯特魯米察", "Kavadarci": "卡瓦達爾奇",
+
+  // 摩洛哥 (Morocco) - 包含 Merzouga
+  "Merzouga": "梅爾祖卡", "Casablanca": "卡薩布蘭卡", "Rabat": "拉巴特", "Marrakech": "馬拉喀什", 
+  "Fes": "費茲", "Tangier": "丹吉爾", "Chefchaouen": "舍夫沙萬", "Essaouira": "索維拉", "Ouarzazate": "瓦爾扎扎特",
+
+  // 台灣
+  "Taipei": "台北", "Kaohsiung": "高雄", "Taichung": "台中", "Tainan": "台南", "Taoyuan": "桃園", "Hsinchu": "新竹",
+  
+  // 歐洲熱門
+  "Paris": "巴黎", "Lyon": "里昂", "Nice": "尼斯", "Marseille": "馬賽",
+  "Berlin": "柏林", "Munich": "慕尼黑", "Frankfurt": "法蘭克福", "Hamburg": "漢堡",
+  "London": "倫敦", "Edinburgh": "愛丁堡", "Manchester": "曼徹斯特", "Liverpool": "利物浦",
+  "Rome": "羅馬", "Milan": "米蘭", "Venice": "威尼斯", "Florence": "佛羅倫斯", "Naples": "拿坡里",
+  "Madrid": "馬德里", "Barcelona": "巴塞隆納", "Seville": "塞維亞", "Valencia": "瓦倫西亞",
+  "Amsterdam": "阿姆斯特丹", "Rotterdam": "鹿特丹", "Brussels": "布魯塞爾", "Bruges": "布魯日",
+  "Zurich": "蘇黎世", "Geneva": "日內瓦", "Vienna": "維也納", "Salzburg": "薩爾斯堡", "Hallstatt": "哈爾施塔特",
+  "Prague": "布拉格", "Cesky Krumlov": "庫倫洛夫", "Budapest": "布達佩斯", "Warsaw": "華沙", "Krakow": "克拉科夫",
+  "Stockholm": "斯德哥爾摩", "Copenhagen": "哥本哈根", "Oslo": "奧斯陸", "Helsinki": "赫爾辛基", "Athens": "雅典",
+  "New York": "紐約", "Los Angeles": "洛杉磯", "San Francisco": "舊金山", "Toronto": "多倫多", "Vancouver": "溫哥華",
+  "Sydney": "雪梨", "Melbourne": "墨爾本", "Bangkok": "曼谷", "Singapore": "新加坡",
+  
+  // 馬爾他騎士團
+  "Magistral Palace": "馬爾他宮", "Magistral Villa": "馬爾他部",
+  
+  // 摩納哥
+  "Monte Carlo": "蒙地卡羅"
+};
+
 const PREDEFINED_CITIES = {
   "North Macedonia": ["Skopje", "Ohrid", "Bitola", "Kumanovo", "Prilep", "Tetovo", "Veles", "Stip", "Gostivar", "Strumica"],
   "Kosovo": ["Pristina", "Prizren", "Peja", "Gjakova", "Mitrovica"],
