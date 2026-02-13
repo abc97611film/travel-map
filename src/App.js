@@ -330,7 +330,10 @@ export default function TravelMapApp() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // ★★★ 修正：預設只在寬螢幕 (電腦) 展開側邊欄，手機版預設隱藏，避免擋住地圖 ★★★
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
+  
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
