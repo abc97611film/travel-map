@@ -2082,6 +2082,106 @@ export default function TravelMapApp() {
         </div>
       )}
 
+      {/* 匯出設定 Modal (預覽版) */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-[2500] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col h-[90vh] animate-in fade-in zoom-in duration-200">
+                {/* Header */}
+                <div className="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-xl">
+                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                        <ImageIcon size={24} className="text-blue-600"/> 匯出地圖預覽
+                    </h2>
+                    <button onClick={() => { setIsExportModalOpen(false); setShowExportPreview(false); }} className="text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-2 rounded-full">
+                        <X size={24} />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 flex overflow-hidden">
+                    {/* 設定欄 */}
+                    <div className="w-80 border-r bg-gray-50 p-6 space-y-6 overflow-y-auto">
+                        <div className="bg-blue-100 p-4 rounded-lg text-sm text-blue-800">
+                            <p>💡 此為匯出圖片的預覽。請等待地圖圖資完全載入後，再點擊下載按鈕。</p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">設定日期區間</label>
+                            <div className="space-y-2">
+                                <div>
+                                    <label className="text-xs text-gray-500 block mb-1">開始日期</label>
+                                    <input 
+                                        type="date" 
+                                        className="w-full p-2 border rounded"
+                                        value={exportStartDate}
+                                        onChange={(e) => setExportStartDate(e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 block mb-1">結束日期</label>
+                                    <input 
+                                        type="date" 
+                                        className="w-full p-2 border rounded"
+                                        value={exportEndDate}
+                                        onChange={(e) => setExportEndDate(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {(exportStartDate || exportEndDate) && (
+                            <button 
+                                onClick={() => { setExportStartDate(''); setExportEndDate(''); }}
+                                className="text-xs text-blue-600 hover:underline"
+                            >
+                                清除日期 (匯出全部)
+                            </button>
+                        )}
+                        
+                        <div className="pt-6 border-t">
+                            <button 
+                                onClick={downloadImage}
+                                disabled={isCapturing}
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-wait"
+                            >
+                                {isCapturing ? (
+                                    <>
+                                        <Loader className="animate-spin" size={18} />
+                                        處理中...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download size={18} />
+                                        下載圖片
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 預覽區 (4:3) */}
+                    <div className="flex-1 bg-slate-200 flex items-center justify-center p-8 overflow-hidden relative">
+                        {/* 這個 div 是用來掛載預覽地圖的 */}
+                        <div 
+                            style={{ width: '480px', height: '360px', position: 'relative', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }} // 縮小的容器
+                        >
+                            <div ref={exportPreviewRef} className="w-full h-full bg-white relative overflow-hidden" />
+                            
+                            {/* Loading Overlay within preview */}
+                            {isCapturing && (
+                                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-50 flex items-center justify-center">
+                                    <span className="font-bold text-blue-800">截圖中...</span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="absolute bottom-4 text-xs text-gray-500">
+                            預覽已縮小顯示，實際下載為 1200x900 高解析度圖片
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
       {/* ID 輸入 Modal - 分頁設計 */}
       {isIdModalOpen && (
           <div className="fixed inset-0 z-[3000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
