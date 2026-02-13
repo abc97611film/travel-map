@@ -378,6 +378,7 @@ export default function TravelMapApp() {
 
   // ★★★ PWA 安裝提示狀態 ★★★
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null); // 用於儲存 Android/Desktop 的安裝事件
 
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
@@ -401,21 +402,47 @@ export default function TravelMapApp() {
   // 用於高亮邏輯 (排除 Transit, 排除 Taiwan)
   const visitedCountriesRef = useRef(new Set()); 
 
-  // ★★★ PWA 安裝偵測 Effect ★★★
+  // ★★★ PWA 安裝偵測 Effect (整合 iOS 與 Android/Desktop) ★★★
   useEffect(() => {
-    // 檢查是否為 iOS
+    // 1. iOS 偵測邏輯
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-    // 檢查是否已經在 Standalone 模式 (已安裝)
-    const isStandalone = window.navigator.standalone === true;
+    // 使用 matchMedia 進行更標準的檢查，並相容舊版 iOS navigator.standalone
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     
-    // 如果是 iOS 且還沒安裝，顯示提示
     if (isIOS && !isStandalone) {
-        // 延遲 3 秒顯示，避免一進來就擋住畫面
-        setTimeout(() => {
-            setShowInstallPrompt(true);
-        }, 3000);
+        // iOS 延遲顯示教學
+        setTimeout(() => setShowInstallPrompt(true), 3000);
     }
+
+    // 2. Android / Desktop Chrome 安裝事件偵測
+    const handleBeforeInstallPrompt = (e) => {
+      // 阻止 Chrome 預設的迷你資訊列出現
+      e.preventDefault();
+      // 將事件儲存起來，以便稍後由使用者觸發
+      setDeferredPrompt(e);
+      // 顯示我們的自訂安裝提示 UI
+      setShowInstallPrompt(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   }, []);
+
+  // 處理 Android/Desktop 安裝點擊
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    // 顯示原生安裝提示
+    deferredPrompt.prompt();
+    // 等待使用者回應
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setShowInstallPrompt(false);
+    }
+  };
 
   useEffect(() => {
     latestDataRef.current = { trips, allCountries };
@@ -2306,7 +2333,7 @@ export default function TravelMapApp() {
         </div>
       )}
 
-      {/* ★★★ iOS PWA 安裝教學提示 (固定底部) ★★★ */}
+      {/* ★★★ PWA 安裝提示 (iOS 教學 / Android 安裝按鈕) ★★★ */}
       {showInstallPrompt && (
         <div className="fixed bottom-4 left-4 right-4 z-[5000] bg-white rounded-xl shadow-2xl border border-gray-100 p-4 animate-in slide-in-from-bottom duration-500">
             <button 
@@ -2317,16 +2344,35 @@ export default function TravelMapApp() {
             </button>
             <div className="flex gap-4">
                 <div className="bg-blue-100 p-3 rounded-lg flex items-center justify-center h-fit">
-                   <PlusSquare className="text-blue-600" size={24} />
+                   {deferredPrompt ? <Download className="text-blue-600" size={24} /> : <PlusSquare className="text-blue-600" size={24} />}
                 </div>
-                <div>
-                    <h3 className="font-bold text-gray-800 text-sm mb-1">將地圖安裝到手機</h3>
-                    <p className="text-xs text-gray-500 mb-2 leading-relaxed">
-                        在 Safari 瀏覽器下方工具列，點擊 <Share className="inline w-3 h-3 mx-1" /> 分享按鈕，然後選擇「加入主畫面」。
-                    </p>
-                    <div className="text-[10px] text-blue-500 bg-blue-50 px-2 py-1 rounded inline-block">
-                        💡 這樣就能像 App 一樣全螢幕使用囉！
-                    </div>
+                <div className="flex-1">
+                    <h3 className="font-bold text-gray-800 text-sm mb-1">
+                        {deferredPrompt ? '安裝應用程式' : '將地圖安裝到手機'}
+                    </h3>
+                    
+                    {deferredPrompt ? (
+                        <div>
+                            <p className="text-xs text-gray-500 mb-2">
+                                安裝後可獲得更佳的全螢幕體驗與離線存取功能。
+                            </p>
+                            <button 
+                                onClick={handleInstallClick}
+                                className="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded hover:bg-blue-700 transition-colors"
+                            >
+                                立即安裝
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                                在 Safari 瀏覽器下方工具列，點擊 <Share className="inline w-3 h-3 mx-1" /> 分享按鈕，然後選擇「加入主畫面」。
+                            </p>
+                            <div className="text-[10px] text-blue-500 bg-blue-50 px-2 py-1 rounded inline-block">
+                                💡 這樣就能像 App 一樣全螢幕使用囉！
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </div>
