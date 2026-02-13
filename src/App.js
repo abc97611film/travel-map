@@ -450,7 +450,11 @@ export default function TravelMapApp() {
   useEffect(() => {
     latestDataRef.current = { trips, allCountries };
     // 更新去過的國家 Set (過濾掉轉機國、台灣)
-    const today = new Date().toISOString().split('T')[0];
+    
+    // ★★★ 修正：使用當地時間，避免時區問題導致當天行程不顯示 ★★★
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    
     const activeTrips = trips.filter(t => t.dateStart && t.dateStart <= today);
     const countries = new Set();
     const cities = new Set(); // 使用 Set 避免重複: "City, Country"
@@ -1254,7 +1258,34 @@ export default function TravelMapApp() {
         const visitedCountries = visitedCountriesRef.current;
         
         geoJsonLayerRef.current.eachLayer((layer) => {
-          const countryName = layer.feature.properties.name || layer.feature.properties.ADMIN;
+          let countryName = layer.feature.properties.name || layer.feature.properties.ADMIN;
+          
+          // ★★★ 關鍵修正：加入名稱對照表 (GeoJSON 名稱 -> 我們的名稱) ★★★
+          const nameMapping = {
+              "United States of America": "United States",
+              "USA": "United States",
+              "England": "United Kingdom",
+              "Great Britain": "United Kingdom",
+              "UK": "United Kingdom",
+              "South Korea": "South Korea", 
+              "Republic of Korea": "South Korea",
+              "Korea, South": "South Korea",
+              "People's Republic of China": "China",
+              "Republic of Serbia": "Serbia",
+              "The Bahamas": "Bahamas",
+              "Bahamas, The": "Bahamas",
+              "Myanmar": "Myanmar", 
+              "Burma": "Myanmar",
+              "Czech Republic": "Czech Republic",
+              "Czechia": "Czech Republic",
+              "Macedonia": "North Macedonia",
+              "The former Yugoslav Republic of Macedonia": "North Macedonia"
+          };
+
+          if (nameMapping[countryName]) {
+              countryName = nameMapping[countryName];
+          }
+
           if (visitedCountries.has(countryName)) {
             layer.setStyle({ fillColor: '#fcd34d', fillOpacity: 0.8, weight: 1 });
           } else {
