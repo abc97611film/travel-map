@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe as GlobeIcon, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map as MapIcon, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy, List } from 'lucide-react';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy, List, Share, PlusSquare } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 與 html2canvas，以相容預覽環境與本機環境
 
@@ -324,33 +324,6 @@ const TimeSelector = ({ value, onChange }) => {
   );
 };
 
-// ★★★ 廣告元件 (Google AdSense) ★★★
-const GoogleAd = ({ client = "ca-pub-XXXXXXXXXXXXXXXX", slot = "1234567890", format = 'auto', responsive = 'true' }) => {
-  useEffect(() => {
-    try {
-      // 確保 window.adsbygoogle 存在
-      if (typeof window !== 'undefined') {
-          (window.adsbygoogle = window.adsbygoogle || []).push({});
-      }
-    } catch (e) {
-      console.error("AdSense push error", e);
-    }
-  }, []);
-
-  return (
-    <div className="my-4 border-t border-b py-4 bg-gray-50 flex flex-col items-center justify-center min-h-[100px]">
-       <span className="text-[10px] text-gray-400 block mb-1">Advertisement</span>
-       <ins className="adsbygoogle"
-          style={{ display: 'block', width: '100%' }}
-          data-ad-client={client}
-          data-ad-slot={slot}
-          data-ad-format={format}
-          data-ad-full-width-responsive={responsive}
-       />
-    </div>
-  );
-};
-
 export default function TravelMapApp() {
   const [user, setUser] = useState(null);
   const [trips, setTrips] = useState([]);
@@ -403,6 +376,9 @@ export default function TravelMapApp() {
   const [showMobileStats, setShowMobileStats] = useState(false); // 控制手機版統計卡片
   const [isStatsListOpen, setIsStatsListOpen] = useState(false); // 新增：控制統計列表 Modal
 
+  // ★★★ PWA 安裝提示狀態 ★★★
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
     destCountry: '', destCity: '', destLat: null, destLng: null,
@@ -424,6 +400,22 @@ export default function TravelMapApp() {
   
   // 用於高亮邏輯 (排除 Transit, 排除 Taiwan)
   const visitedCountriesRef = useRef(new Set()); 
+
+  // ★★★ PWA 安裝偵測 Effect ★★★
+  useEffect(() => {
+    // 檢查是否為 iOS
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    // 檢查是否已經在 Standalone 模式 (已安裝)
+    const isStandalone = window.navigator.standalone === true;
+    
+    // 如果是 iOS 且還沒安裝，顯示提示
+    if (isIOS && !isStandalone) {
+        // 延遲 3 秒顯示，避免一進來就擋住畫面
+        setTimeout(() => {
+            setShowInstallPrompt(true);
+        }, 3000);
+    }
+  }, []);
 
   useEffect(() => {
     latestDataRef.current = { trips, allCountries };
@@ -635,19 +627,6 @@ export default function TravelMapApp() {
     loadStyle('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'leaflet-css');
     loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'leaflet-js');
     loadScript('https://html2canvas.hertzen.com/dist/html2canvas.min.js', 'html2canvas-js');
-
-    // ★★★ 載入 Google AdSense 腳本 ★★★
-    // 注意：您需要將 ca-pub-XXXXXXXXXXXXXXXX 替換為您的實際 AdSense ID
-    const loadAdSense = () => {
-        if (document.getElementById('adsense-script')) return;
-        const script = document.createElement('script');
-        script.id = 'adsense-script';
-        script.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX";
-        script.async = true;
-        script.crossOrigin = "anonymous";
-        document.body.appendChild(script);
-    };
-    loadAdSense();
 
     const checkLibs = setInterval(() => {
         if (window.L && window.html2canvas) {
@@ -1598,11 +1577,11 @@ export default function TravelMapApp() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full bg-gray-100 font-sans text-gray-800">
+    <div className="flex flex-col h-[100dvh] w-full bg-gray-100 font-sans text-gray-800 safe-area-inset-bottom">
       
-      <header className="bg-blue-900 text-white p-4 shadow-md flex items-center justify-between z-20">
+      <header className="bg-blue-900 text-white p-4 shadow-md flex items-center justify-between z-20 pt-[env(safe-area-inset-top,20px)]">
         <div className="flex items-center gap-2">
-          <MapIcon className="w-6 h-6" />
+          <Map className="w-6 h-6" />
           <div>
               <h1 className="text-xl font-bold tracking-wide">🗺️歐洲交換趴趴走</h1>
               {currentMapId && (
@@ -1655,14 +1634,14 @@ export default function TravelMapApp() {
         <div 
           className={`absolute z-[1000] top-0 left-0 h-full bg-white shadow-2xl transition-transform duration-300 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-full sm:w-96 flex flex-col`}
         >
-          <div className="p-4 border-b flex justify-between items-center bg-gray-50 flex-shrink-0">
+          <div className="p-4 border-b flex justify-between items-center bg-gray-50">
             <h2 className="font-bold text-gray-700">旅程列表</h2>
             <button onClick={() => setIsSidebarOpen(false)} className="p-2 rounded hover:bg-gray-200">
               <ChevronLeft size={24} />
             </button>
           </div>
           
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 pb-24 md:pb-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 md:pb-4">
             {trips.map(trip => (
                 <div 
                     key={trip.id} 
@@ -1729,13 +1708,10 @@ export default function TravelMapApp() {
                 </div>
               ))
             }
-            
-            {/* 廣告版位 (列表最下方) */}
-            <GoogleAd />
           </div>
           
           {/* 行動裝置版按鈕懸浮修正：在桌面版為 normal flow, 手機版為 fixed bottom */}
-          <div className="p-4 border-t bg-gray-50 md:static fixed bottom-0 left-0 w-full z-10 md:z-auto shadow-inner md:shadow-none flex-shrink-0">
+          <div className="p-4 border-t bg-gray-50 md:static fixed bottom-0 left-0 w-full z-10 md:z-auto shadow-inner md:shadow-none pb-[env(safe-area-inset-bottom,20px)]">
             <button 
               onClick={() => openModal('')}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg flex items-center justify-center gap-2 shadow transition-colors font-bold text-lg"
@@ -1768,7 +1744,7 @@ export default function TravelMapApp() {
           <div ref={mapContainerRef} className="flex-1 relative" />
           
           {/* 懸浮統計卡片 (右上角) */}
-          <div className="absolute top-4 right-4 z-[400] flex flex-col items-end pointer-events-none">
+          <div className="absolute top-4 right-4 z-[400] flex flex-col items-end pointer-events-none pt-[env(safe-area-inset-top,0px)]">
             
             {/* Toggle Button (Mobile Only) */}
             <button 
@@ -1816,7 +1792,7 @@ export default function TravelMapApp() {
             </div>
           </div>
 
-          <div className="absolute bottom-6 right-6 z-[400] bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-xl border border-gray-200">
+          <div className="absolute bottom-6 right-6 z-[400] bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-xl border border-gray-200 mb-[env(safe-area-inset-bottom,0px)]">
              <h4 className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider border-b pb-1">交通方式</h4>
              <div className="space-y-2">
                  <div className="grid grid-cols-5 gap-2">
@@ -2210,7 +2186,7 @@ export default function TravelMapApp() {
               <div className="p-8">
                 <div className="text-center mb-6">
                   <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
-                    <GlobeIcon size={32} />
+                    <Globe size={32} />
                   </div>
                   <h2 className="text-2xl font-bold text-gray-800">
                     {idMode === 'enter' ? '歡迎回來！' : '開始新的旅程'}
@@ -2329,6 +2305,33 @@ export default function TravelMapApp() {
           </div>
         </div>
       )}
+
+      {/* ★★★ iOS PWA 安裝教學提示 (固定底部) ★★★ */}
+      {showInstallPrompt && (
+        <div className="fixed bottom-4 left-4 right-4 z-[5000] bg-white rounded-xl shadow-2xl border border-gray-100 p-4 animate-in slide-in-from-bottom duration-500">
+            <button 
+                onClick={() => setShowInstallPrompt(false)} 
+                className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+            >
+                <X size={16} />
+            </button>
+            <div className="flex gap-4">
+                <div className="bg-blue-100 p-3 rounded-lg flex items-center justify-center h-fit">
+                   <PlusSquare className="text-blue-600" size={24} />
+                </div>
+                <div>
+                    <h3 className="font-bold text-gray-800 text-sm mb-1">將地圖安裝到手機</h3>
+                    <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                        在 Safari 瀏覽器下方工具列，點擊 <Share className="inline w-3 h-3 mx-1" /> 分享按鈕，然後選擇「加入主畫面」。
+                    </p>
+                    <div className="text-[10px] text-blue-500 bg-blue-50 px-2 py-1 rounded inline-block">
+                        💡 這樣就能像 App 一樣全螢幕使用囉！
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
     </div>
   );
 }
