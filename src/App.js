@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy, List } from 'lucide-react';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe as GlobeIcon, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map as MapIcon, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy, List } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 與 html2canvas，以相容預覽環境與本機環境
 
@@ -1602,7 +1602,7 @@ export default function TravelMapApp() {
       
       <header className="bg-blue-900 text-white p-4 shadow-md flex items-center justify-between z-20">
         <div className="flex items-center gap-2">
-          <Map className="w-6 h-6" />
+          <MapIcon className="w-6 h-6" />
           <div>
               <h1 className="text-xl font-bold tracking-wide">🗺️歐洲交換趴趴走</h1>
               {currentMapId && (
@@ -2080,6 +2080,127 @@ export default function TravelMapApp() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ID 輸入 Modal - 分頁設計 */}
+      {isIdModalOpen && (
+          <div className="fixed inset-0 z-[3000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
+              
+              {/* Tabs */}
+              <div className="flex border-b">
+                <button 
+                  onClick={() => { setIdMode('enter'); setIdError(''); }}
+                  className={`flex-1 py-4 font-bold text-center transition-colors ${idMode === 'enter' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <LogIn size={18} /> 進入我的地圖
+                  </div>
+                </button>
+                <button 
+                  onClick={() => { setIdMode('create'); setIdError(''); }}
+                  className={`flex-1 py-4 font-bold text-center transition-colors ${idMode === 'create' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <PlusCircle size={18} /> 建立新地圖
+                  </div>
+                </button>
+              </div>
+
+              <div className="p-8">
+                <div className="text-center mb-6">
+                  <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+                    <GlobeIcon size={32} />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    {idMode === 'enter' ? '歡迎回來！' : '開始新的旅程'}
+                  </h2>
+                  <p className="text-gray-500 mt-2 text-sm">
+                    {idMode === 'enter' 
+                      ? '請輸入 ID 與密碼以進入您的地圖' 
+                      : '請設定專屬 ID 與密碼來建立新地圖'}
+                  </p>
+                </div>
+                
+                <form onSubmit={handleIdSubmit} className="space-y-4">
+                  {/* ID Input */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">地圖 ID (英文或數字)</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="例如: my-trip-2025"
+                      className={`w-full p-4 border-2 rounded-xl text-lg outline-none transition-colors ${idError ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-blue-500'}`}
+                      value={tempMapIdInput}
+                      onChange={(e) => {
+                          setTempMapIdInput(e.target.value);
+                          setIdError('');
+                      }}
+                    />
+                  </div>
+
+                  {/* Password Input */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">
+                      {idMode === 'enter' ? '輸入密碼' : '設定密碼 (4-6位數字)'}
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                      <input 
+                        type={showPassword ? "text" : "password"} 
+                        required
+                        placeholder="••••••"
+                        maxLength={6}
+                        className={`w-full pl-12 pr-12 p-4 border-2 rounded-xl text-lg outline-none transition-colors ${idError ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-blue-500'}`}
+                        value={tempPasswordInput}
+                        onChange={(e) => {
+                            // Only allow numbers
+                            const val = e.target.value.replace(/\D/g, '');
+                            setTempPasswordInput(val);
+                            setIdError('');
+                        }}
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* 記住密碼 Checkbox */}
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      id="rememberMe"
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                    />
+                    <label htmlFor="rememberMe" className="text-sm text-gray-600 cursor-pointer select-none">記住 ID 與密碼 (下次自動登入)</label>
+                  </div>
+
+                  {idError && <p className="text-red-500 text-sm font-bold text-center bg-red-50 p-2 rounded">{idError}</p>}
+                  
+                  <button 
+                    type="submit"
+                    disabled={isCheckingId}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isCheckingId ? <Loader className="animate-spin" /> : (idMode === 'enter' ? '進入地圖 ➔' : '建立地圖 🚀')}
+                  </button>
+                </form>
+                
+                <div className="mt-6 text-center bg-blue-50 p-3 rounded-lg">
+                  <p className="text-xs text-blue-600 font-medium">
+                    💡 請牢記您的 ID 與密碼，遺失無法找回！
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
       )}
 
       {/* 刪除確認 Modal */}
