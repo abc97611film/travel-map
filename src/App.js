@@ -671,43 +671,60 @@ export default function TravelMapApp() {
     setAllCountries(countries);
   }, []);
 
+  // ★★★ 4. 地圖預覽與繪製邏輯 (優化手機版匯出 9:16) ★★★
   useEffect(() => {
     if (!showExportPreview || !exportPreviewRef.current || !window.L) return;
     exportPreviewRef.current.innerHTML = '';
     
+    // 偵測是否為手機版匯出
+    const isMobileExport = window.innerWidth < 768;
+    const exportWidth = isMobileExport ? 1080 : 1200;
+    const exportHeight = isMobileExport ? 1920 : 900;
+
     const container = document.createElement('div');
-    container.style.width = '1200px';
-    container.style.height = '900px';
+    container.style.width = `${exportWidth}px`;
+    container.style.height = `${exportHeight}px`;
     container.style.backgroundColor = '#f1f5f9';
     container.style.display = 'flex';
     container.style.flexDirection = 'column';
     container.style.fontFamily = 'sans-serif';
     container.style.position = 'absolute'; 
-    container.style.transform = 'scale(0.4)'; 
+    // 預覽縮放比例：手機版縮更小以適應視窗
+    container.style.transform = isMobileExport ? 'scale(0.2)' : 'scale(0.4)'; 
     container.style.transformOrigin = 'top left';
     exportPreviewRef.current.appendChild(container);
 
+    // ★ 標頭 (9:16 時置中且加大一點字體)
     const header = document.createElement('div');
-    header.style.padding = '20px';
+    header.style.padding = isMobileExport ? '40px' : '20px';
     header.style.backgroundColor = '#1e3a8a';
     header.style.color = 'white';
     header.style.display = 'flex';
+    header.style.flexDirection = isMobileExport ? 'column' : 'row';
     header.style.justifyContent = 'space-between';
-    header.style.alignItems = 'center';
+    header.style.alignItems = isMobileExport ? 'center' : 'center';
+    header.style.textAlign = isMobileExport ? 'center' : 'left';
+    header.style.gap = isMobileExport ? '20px' : '0';
     
     let dateRangeText = "全部時段";
     if (exportStartDate && exportEndDate) {
         dateRangeText = `${exportStartDate} 至 ${exportEndDate}`;
     }
 
+    // 標題 HTML
+    const titleSize = isMobileExport ? '48px' : '28px';
+    const subTitleSize = isMobileExport ? '24px' : '16px';
+    const rangeLabelSize = isMobileExport ? '28px' : '18px';
+    const rangeTextSize = isMobileExport ? '24px' : '18px';
+
     header.innerHTML = `
         <div>
-            <h1 style="margin:0; font-size: 28px; font-weight: bold;">🗺️歐洲交換趴趴走</h1>
-            <p style="margin:5px 0 0 0; opacity: 0.8; font-size: 16px;">地圖 ID: ${currentMapId}</p>
+            <h1 style="margin:0; font-size: ${titleSize}; font-weight: bold;">🗺️歐洲交換趴趴走</h1>
+            <p style="margin:5px 0 0 0; opacity: 0.8; font-size: ${subTitleSize};">地圖 ID: ${currentMapId}</p>
         </div>
-        <div style="text-align: right;">
-            <p style="margin:0; font-size: 18px; font-weight: bold;">旅程日期範圍</p>
-            <p style="margin:5px 0 0 0; font-family: monospace; font-size: 18px;">${dateRangeText}</p>
+        <div style="text-align: ${isMobileExport ? 'center' : 'right'};">
+            <p style="margin:0; font-size: ${rangeLabelSize}; font-weight: bold;">旅程日期範圍</p>
+            <p style="margin:5px 0 0 0; font-family: monospace; font-size: ${rangeTextSize};">${dateRangeText}</p>
         </div>
     `;
     container.appendChild(header);
@@ -760,35 +777,53 @@ export default function TravelMapApp() {
     exportStats.countries = exportCountriesSet.size;
     exportStats.cities = exportCitiesSet.size;
 
+    // ★ 統計卡片 (手機版稍微放大並移到顯眼處)
     const statsCard = document.createElement('div');
     statsCard.style.position = 'absolute';
-    statsCard.style.top = '20px';
-    statsCard.style.right = '20px';
+    // 手機版：放在頂部置中 (地圖上方) 或 右上角但更大
+    if (isMobileExport) {
+        statsCard.style.top = '40px';
+        statsCard.style.left = '50%';
+        statsCard.style.transform = 'translateX(-50%)';
+        statsCard.style.padding = '30px';
+        statsCard.style.borderRadius = '24px';
+        statsCard.style.minWidth = '400px';
+    } else {
+        statsCard.style.top = '20px';
+        statsCard.style.right = '20px';
+        statsCard.style.padding = '15px';
+        statsCard.style.borderRadius = '12px';
+        statsCard.style.minWidth = '160px';
+    }
+    
     statsCard.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
-    statsCard.style.padding = '15px';
-    statsCard.style.borderRadius = '12px';
     statsCard.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.2)';
     statsCard.style.zIndex = '1000';
     statsCard.style.fontFamily = 'sans-serif';
-    statsCard.style.minWidth = '160px';
     statsCard.style.border = '1px solid rgba(255, 255, 255, 0.5)';
     statsCard.style.backdropFilter = 'blur(4px)';
 
+    const iconSize = isMobileExport ? '32' : '16';
+    const fontSizeTitle = isMobileExport ? '28px' : '14px';
+    const fontSizeLabel = isMobileExport ? '24px' : '12px';
+    const fontSizeVal = isMobileExport ? '36px' : '18px';
+    const gapSize = isMobileExport ? '16px' : '8px';
+
     statsCard.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">
-            <div style="background-color: #fef9c3; padding: 6px; border-radius: 9999px;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+        <div style="display: flex; align-items: center; gap: ${gapSize}; margin-bottom: ${isMobileExport ? '20px' : '10px'}; border-bottom: 1px solid #e5e7eb; padding-bottom: ${isMobileExport ? '16px' : '8px'};">
+            <div style="background-color: #fef9c3; padding: ${isMobileExport ? '12px' : '6px'}; border-radius: 9999px;">
+                <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
             </div>
-            <span style="font-weight: bold; color: #374151; font-size: 14px;">旅程足跡</span>
+            <span style="font-weight: bold; color: #374151; font-size: ${fontSizeTitle};">旅程足跡</span>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; flex-direction: column; gap: ${gapSize};">
             <div style="display: flex; align-items: center; justify-content: space-between;">
-                <span style="font-size: 12px; color: #6b7280;">已造訪國家</span>
-                <span style="font-weight: bold; font-size: 18px; color: #2563eb;">${exportStats.countries}</span>
+                <span style="font-size: ${fontSizeLabel}; color: #6b7280;">已造訪國家</span>
+                <span style="font-weight: bold; font-size: ${fontSizeVal}; color: #2563eb;">${exportStats.countries}</span>
             </div>
             <div style="display: flex; align-items: center; justify-content: space-between;">
-                <span style="font-size: 12px; color: #6b7280;">已造訪城市</span>
-                <span style="font-weight: bold; font-size: 18px; color: #4f46e5;">${exportStats.cities}</span>
+                <span style="font-size: ${fontSizeLabel}; color: #6b7280;">已造訪城市</span>
+                <span style="font-weight: bold; font-size: ${fontSizeVal}; color: #4f46e5;">${exportStats.cities}</span>
             </div>
         </div>
     `;
@@ -837,7 +872,7 @@ export default function TravelMapApp() {
       if (trip.originLat && trip.originLng && trip.destLat && trip.destLng) {
         const typeConfig = TRANSPORT_TYPES[trip.transport] || TRANSPORT_TYPES.plane;
         const isFutureOrNoDate = !trip.dateStart || trip.dateStart > today;
-        const lineOptions = { color: typeConfig.color, weight: 4, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null };
+        const lineOptions = { color: typeConfig.color, weight: isMobileExport ? 6 : 4, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null };
         let polyline;
         
         if (trip.transitLat && trip.transitLng) {
@@ -867,28 +902,33 @@ export default function TravelMapApp() {
         bounds.extend([trip.originLat, trip.originLng]);
         bounds.extend([trip.destLat, trip.destLng]);
         hasData = true;
-        L.circleMarker([trip.originLat, trip.originLng], { radius: 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
-        L.circleMarker([trip.destLat, trip.destLng], { radius: 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
+        L.circleMarker([trip.originLat, trip.originLng], { radius: isMobileExport ? 8 : 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
+        L.circleMarker([trip.destLat, trip.destLng], { radius: isMobileExport ? 8 : 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
       }
     });
 
     if (hasData && bounds.isValid()) {
-        exportMap.fitBounds(bounds, { padding: [50, 50] });
+        exportMap.fitBounds(bounds, { padding: isMobileExport ? [100, 200] : [50, 50] });
     } else {
         exportMap.setView([48, 15], 4);
     }
 
     const legend = document.createElement('div');
-    legend.style.padding = '15px 20px';
+    legend.style.padding = isMobileExport ? '40px' : '15px 20px';
     legend.style.backgroundColor = 'white';
     legend.style.borderTop = '1px solid #e2e8f0';
     legend.style.display = 'flex';
-    legend.style.gap = '20px';
+    legend.style.gap = isMobileExport ? '30px' : '20px';
     legend.style.justifyContent = 'center';
+    legend.style.flexWrap = 'wrap'; // 允許換行
     
+    const legendTextSize = isMobileExport ? '24px' : '14px';
+    const legendIconW = isMobileExport ? '36px' : '24px';
+    const legendIconH = isMobileExport ? '10px' : '6px';
+
     let legendHtml = '';
     Object.entries(TRANSPORT_TYPES).forEach(([key, type]) => {
-        legendHtml += `<div style="display: flex; align-items: center; gap: 8px;"><div style="width: 24px; height: 6px; background-color: ${type.color}; border-radius: 4px;"></div><span style="font-size: 14px; color: #334155; font-weight: bold;">${type.label}</span></div>`;
+        legendHtml += `<div style="display: flex; align-items: center; gap: 8px;"><div style="width: ${legendIconW}; height: ${legendIconH}; background-color: ${type.color}; border-radius: 4px;"></div><span style="font-size: ${legendTextSize}; color: #334155; font-weight: bold;">${type.label}</span></div>`;
     });
     legend.innerHTML = legendHtml;
     container.appendChild(legend);
@@ -1324,13 +1364,15 @@ export default function TravelMapApp() {
 
         <div className="w-full h-full z-0 bg-slate-200 relative flex flex-col">
           <div ref={mapContainerRef} className="flex-1 relative" />
+          
+          {/* ★★★ 修改：手機版與電腦版皆顯示固定浮動卡片，移除 Toggle Button ★★★ */}
           <div className="absolute top-4 right-4 z-[400] flex flex-col items-end pointer-events-none pt-[env(safe-area-inset-top,0px)]">
-            <button onClick={() => setShowMobileStats(!showMobileStats)} className="pointer-events-auto md:hidden bg-white p-3 rounded-full shadow-xl text-blue-600 border border-blue-100 mb-2 hover:bg-gray-50 active:scale-95 transition-transform" title="顯示統計"><Trophy size={20} /></button>
-            <div className={`pointer-events-auto bg-white/95 backdrop-blur p-4 rounded-xl shadow-2xl border border-white/50 transform transition-all duration-300 origin-top-right ${showMobileStats ? 'scale-100 opacity-100 translate-y-0' : 'scale-90 opacity-0 -translate-y-4 pointer-events-none absolute right-0 top-12'} md:static md:scale-100 md:opacity-100 md:translate-y-0 md:pointer-events-auto`}>
+            <div className={`pointer-events-auto bg-white/95 backdrop-blur p-4 rounded-xl shadow-2xl border border-white/50 transform transition-all duration-300 origin-top-right scale-100 opacity-100 translate-y-0`}>
                 <div className="flex items-center justify-between gap-4 mb-3 pb-2 border-b border-gray-100"><div className="flex items-center gap-2"><div className="bg-yellow-100 p-1.5 rounded-full"><Trophy size={14} className="text-yellow-600" /></div><span className="font-bold text-gray-700 text-sm">旅程足跡</span></div><button onClick={() => setIsStatsListOpen(true)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded transition-colors flex items-center gap-1"><List size={12} /> 清單</button></div>
                 <div className="space-y-3 min-w-[140px]"><div className="flex items-center justify-between"><span className="text-xs text-gray-500">已造訪國家</span><span className="font-bold text-lg text-blue-600">{stats.countries}</span></div><div className="flex items-center justify-between"><span className="text-xs text-gray-500">已造訪城市</span><span className="font-bold text-lg text-indigo-600">{stats.cities}</span></div></div>
             </div>
           </div>
+
           <div className="absolute bottom-6 right-6 z-[400] bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-xl border border-gray-200 mb-[env(safe-area-inset-bottom,0px)]"><h4 className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider border-b pb-1">交通方式</h4><div className="space-y-2"><div className="grid grid-cols-5 gap-2">{Object.entries(TRANSPORT_TYPES).map(([key, type]) => (<div key={key} className="flex flex-col items-center gap-1"><div className="w-full h-1 rounded-full" style={{ backgroundColor: type.color }}></div><span className="text-[10px] font-bold text-gray-600 text-center leading-tight">{type.label}</span></div>))}</div></div><div className="mt-2 pt-2 border-t text-[10px] text-gray-400 text-center">虛線代表未定/未來行程</div></div>
         </div>
       </div>
