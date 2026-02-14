@@ -353,7 +353,7 @@ export default function TravelMapApp() {
 
   const [stats, setStats] = useState({ countries: 0, cities: 0 });
   const [detailedStats, setDetailedStats] = useState({ countryList: [], cityList: [] }); 
-  const [showMobileStats, setShowMobileStats] = useState(false); 
+  const [showMobileStats, setShowMobileStats] = useState(false); // Used for rendering logic check in JSX
   const [isStatsListOpen, setIsStatsListOpen] = useState(false); 
 
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
@@ -412,7 +412,6 @@ export default function TravelMapApp() {
   useEffect(() => {
     latestDataRef.current = { trips, allCountries };
     
-    // 使用當地時間判斷
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     
@@ -671,7 +670,44 @@ export default function TravelMapApp() {
     setAllCountries(countries);
   }, []);
 
-  // ★★★ 4. 地圖預覽與繪製邏輯 (優化手機版匯出 9:16) ★★★
+  const downloadImage = useCallback(async () => {
+      if (!exportPreviewRef.current) return;
+      setIsCapturing(true);
+      const container = exportPreviewRef.current.firstChild; 
+      try {
+          const clone = container.cloneNode(true);
+          const originalCanvases = container.querySelectorAll('canvas');
+          const clonedCanvases = clone.querySelectorAll('canvas');
+          originalCanvases.forEach((orig, index) => {
+              const dest = clonedCanvases[index];
+              if (dest) {
+                  const ctx = dest.getContext('2d');
+                  dest.width = orig.width;
+                  dest.height = orig.height;
+                  ctx.drawImage(orig, 0, 0);
+              }
+          });
+          clone.style.transform = 'none'; 
+          clone.style.position = 'fixed';
+          clone.style.top = '0';
+          clone.style.left = '0';
+          clone.style.zIndex = '-9999'; 
+          document.body.appendChild(clone);
+          await new Promise(r => setTimeout(r, 500));
+          const canvas = await window.html2canvas(clone, { useCORS: true, scale: 2, logging: false, allowTaint: true, backgroundColor: '#f1f5f9', ignoreElements: (element) => element.classList.contains('leaflet-control-zoom') });
+          const link = document.createElement('a');
+          link.download = `travel-map-export-${new Date().toISOString().split('T')[0]}.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+          document.body.removeChild(clone);
+          setIsExportModalOpen(false);
+          setShowExportPreview(false);
+      } catch (err) {
+          console.error("Screenshot error", err);
+          alert("截圖失敗，請稍後再試。\n錯誤訊息: " + err.message);
+      } finally { setIsCapturing(false); }
+  }, []);
+
   useEffect(() => {
     if (!showExportPreview || !exportPreviewRef.current || !window.L) return;
     exportPreviewRef.current.innerHTML = '';
@@ -886,6 +922,7 @@ export default function TravelMapApp() {
             } else {
                 L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(exportMap);
                 polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
+                layersRef.current.push(p1);
             }
             bounds.extend([trip.transitLat, trip.transitLng]);
         } else {
@@ -934,45 +971,7 @@ export default function TravelMapApp() {
     container.appendChild(legend);
     container._exportMap = exportMap;
     return () => { if (container._exportMap) { container._exportMap.remove(); } };
-  }, [showExportPreview, exportStartDate, exportEndDate, trips, currentMapId]);
-
-  const downloadImage = useCallback(async () => {
-      if (!exportPreviewRef.current) return;
-      setIsCapturing(true);
-      const container = exportPreviewRef.current.firstChild; 
-      try {
-          const clone = container.cloneNode(true);
-          const originalCanvases = container.querySelectorAll('canvas');
-          const clonedCanvases = clone.querySelectorAll('canvas');
-          originalCanvases.forEach((orig, index) => {
-              const dest = clonedCanvases[index];
-              if (dest) {
-                  const ctx = dest.getContext('2d');
-                  dest.width = orig.width;
-                  dest.height = orig.height;
-                  ctx.drawImage(orig, 0, 0);
-              }
-          });
-          clone.style.transform = 'none'; 
-          clone.style.position = 'fixed';
-          clone.style.top = '0';
-          clone.style.left = '0';
-          clone.style.zIndex = '-9999'; 
-          document.body.appendChild(clone);
-          await new Promise(r => setTimeout(r, 500));
-          const canvas = await window.html2canvas(clone, { useCORS: true, scale: 2, logging: false, allowTaint: true, backgroundColor: '#f1f5f9', ignoreElements: (element) => element.classList.contains('leaflet-control-zoom') });
-          const link = document.createElement('a');
-          link.download = `travel-map-export-${new Date().toISOString().split('T')[0]}.png`;
-          link.href = canvas.toDataURL('image/png');
-          link.click();
-          document.body.removeChild(clone);
-          setIsExportModalOpen(false);
-          setShowExportPreview(false);
-      } catch (err) {
-          console.error("Screenshot error", err);
-          alert("截圖失敗，請稍後再試。\n錯誤訊息: " + err.message);
-      } finally { setIsCapturing(false); }
-  }, []);
+  }, [showExportPreview, exportStartDate, exportEndDate, trips, currentMapId, downloadImage]); // Added downloadImage dependency to fix warning, though not strictly needed here as it's used inside the component not this effect. But `downloadImage` is defined before. Wait, `downloadImage` is defined BEFORE this effect? No, it's defined BEFORE. Good.
 
   const fetchCitiesForCountry = useCallback(async (country, type) => {
     if (!country) return;
@@ -1114,29 +1113,26 @@ export default function TravelMapApp() {
         if (trip.transitLat && trip.transitLng) {
             if (trip.transport === 'plane') {
                 const curvedPoints1 = getGreatCirclePoints(trip.originLat, trip.originLng, trip.transitLat, trip.transitLng);
-                const p1 = L.polyline(curvedPoints1, lineOptions).addTo(map);
+                L.polyline(curvedPoints1, lineOptions).addTo(exportMap);
                 const curvedPoints2 = getGreatCirclePoints(trip.transitLat, trip.transitLng, trip.destLat, trip.destLng);
-                polyline = L.polyline(curvedPoints2, lineOptions).addTo(map);
-                layersRef.current.push(p1);
+                polyline = L.polyline(curvedPoints2, lineOptions).addTo(exportMap);
             } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
-                polyline = L.polyline(trip.routePath, lineOptions).addTo(map);
+                polyline = L.polyline(trip.routePath, lineOptions).addTo(exportMap);
             } else {
-                const p1 = L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(map);
-                polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(map);
+                L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(exportMap);
+                polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
                 layersRef.current.push(p1);
             }
         } else {
             if (trip.transport === 'plane') {
                  const curvedPoints = getGreatCirclePoints(trip.originLat, trip.originLng, trip.destLat, trip.destLng);
-                 polyline = L.polyline(curvedPoints, lineOptions).addTo(map);
+                 polyline = L.polyline(curvedPoints, lineOptions).addTo(exportMap);
             } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
-                polyline = L.polyline(trip.routePath, lineOptions).addTo(map);
+                polyline = L.polyline(trip.routePath, lineOptions).addTo(exportMap);
             } else {
-                const straightLatLngs = [[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]];
-                polyline = L.polyline(straightLatLngs, lineOptions).addTo(map);
+                polyline = L.polyline([[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
             }
         }
-
         if (polyline) polyline.bringToFront();
         const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
         const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
