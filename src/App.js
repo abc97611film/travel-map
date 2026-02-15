@@ -105,7 +105,7 @@ try {
 const appId = 'travel-map-v1'; 
 
 // -----------------------------------------------------------------------------
-// 2. 翻譯資料庫 (繁體中文 - 台灣慣用語)
+// 2. 翻譯資料庫 (全球擴充版)
 // -----------------------------------------------------------------------------
 const COUNTRY_TRANSLATIONS = {
   // === 亞洲 (Asia) ===
@@ -119,7 +119,7 @@ const COUNTRY_TRANSLATIONS = {
   "Kazakhstan": "哈薩克", "Uzbekistan": "烏茲別克", "Turkmenistan": "土庫曼", 
   "Kyrgyzstan": "吉爾吉斯", "Tajikistan": "塔吉克",
 
-  // === 歐洲 (Europe - 完整列表) ===
+  // === 歐洲 (Europe) ===
   "Albania": "阿爾巴尼亞", "Andorra": "安道爾", "Armenia": "亞美尼亞", "Austria": "奧地利", 
   "Azerbaijan": "亞塞拜然", "Belarus": "白俄羅斯", "Belgium": "比利時", 
   "Bosnia and Herzegovina": "波士尼亞與赫塞哥維納", "Bulgaria": "保加利亞", 
@@ -157,64 +157,77 @@ const COUNTRY_TRANSLATIONS = {
   "Venezuela": "委內瑞拉", "Cuba": "古巴", "Jamaica": "牙買加", "Costa Rica": "哥斯大黎加",
   "Panama": "巴拿馬", "Bahamas": "巴哈馬", "Dominican Republic": "多明尼加", "Haiti": "海地",
   "Belize": "貝里斯", "Guatemala": "瓜地馬拉", "Honduras": "宏都拉斯", "El Salvador": "薩爾瓦多",
-  "Nicaragua": "尼加拉瓜", "USA": "美國",
+  "Nicaragua": "尼加拉瓜", "USA": "美國", "Barbados": "巴貝多", "Saint Lucia": "聖露西亞",
+  "Trinidad and Tobago": "千里達及托巴哥", "Aruba": "阿魯巴", "Curacao": "庫拉索",
 
   // === 大洋洲 (Oceania) ===
   "Australia": "澳洲", "New Zealand": "紐西蘭", "Fiji": "斐濟", "Palau": "帛琉", "Guam": "關島",
   "Papua New Guinea": "巴布亞紐幾內亞", "Solomon Islands": "索羅門群島", "Vanuatu": "萬那杜",
+  "Samoa": "薩摩亞", "Tonga": "東加", "Cook Islands": "庫克群島", "French Polynesia": "法屬玻里尼西亞",
+  "New Caledonia": "新喀里多尼亞",
 
-  // === 非洲其他 (Sub-Saharan Africa) ===
+  // === 非洲 (Sub-Saharan Africa) ===
   "South Africa": "南非", "Kenya": "肯亞", "Tanzania": "坦尚尼亞", "Ethiopia": "衣索比亞", 
-  "Nigeria": "奈及利亞", "Ghana": "迦納", "Madagascar": "馬達加斯加", "Sudan": "蘇丹"
+  "Nigeria": "奈及利亞", "Ghana": "迦納", "Madagascar": "馬達加斯加", "Sudan": "蘇丹",
+  "Namibia": "納米比亞", "Botswana": "波札那", "Zimbabwe": "辛巴威", "Zambia": "尚比亞",
+  "Uganda": "烏干達", "Rwanda": "盧安達", "Senegal": "塞內加爾", "Ivory Coast": "象牙海岸",
+  "Mauritius": "模里西斯", "Seychelles": "塞席爾"
 };
 
 const CITY_TRANSLATIONS = {
-  // 巴爾幹半島
-  "Skopje": "史科普耶", "Ohrid": "奧赫里德", "Bitola": "比托拉", 
-  "Pristina": "普里斯提納", "Prizren": "普里茲倫",
-  "Podgorica": "波德里查", "Kotor": "科托爾", "Budva": "布德瓦",
-  "Sarajevo": "塞拉耶佛", "Mostar": "莫斯塔爾",
-  "Tirana": "地拉那", "Durres": "都拉斯", "Berat": "培拉特",
-  "Belgrade": "貝爾格勒", "Novi Sad": "諾維薩德",
-  "Zagreb": "札格瑞布", "Split": "斯普利特", "Dubrovnik": "杜布羅夫尼克",
-  "Ljubljana": "盧布爾雅那", "Bled": "布萊德",
-  
-  // 西歐/北歐/中歐
-  "London": "倫敦", "Edinburgh": "愛丁堡", "Manchester": "曼徹斯特", "Liverpool": "利物浦", "Oxford": "牛津", "Cambridge": "劍橋",
-  "Paris": "巴黎", "Lyon": "里昂", "Nice": "尼斯", "Marseille": "馬賽", "Bordeaux": "波爾多", "Strasbourg": "史特拉斯堡",
-  "Berlin": "柏林", "Munich": "慕尼黑", "Frankfurt": "法蘭克福", "Hamburg": "漢堡", "Cologne": "科隆", "Heidelberg": "海德堡",
-  "Amsterdam": "阿姆斯特丹", "Rotterdam": "鹿特丹", "The Hague": "海牙", "Utrecht": "烏特勒支",
-  "Brussels": "布魯塞爾", "Bruges": "布魯日", "Ghent": "根特", "Antwerp": "安特衛普",
-  "Vienna": "維也納", "Salzburg": "薩爾斯堡", "Hallstatt": "哈爾施塔特", "Innsbruck": "因斯布魯克",
-  "Zurich": "蘇黎世", "Geneva": "日內瓦", "Bern": "伯恩", "Lucerne": "琉森", "Zermatt": "策馬特", "Interlaken": "因特拉肯",
-  "Rome": "羅馬", "Milan": "米蘭", "Venice": "威尼斯", "Florence": "佛羅倫斯", "Naples": "拿坡里", "Pisa": "比薩",
-  "Madrid": "馬德里", "Barcelona": "巴塞隆納", "Seville": "塞維亞", "Granada": "格拉納達", "Valencia": "瓦倫西亞",
-  "Lisbon": "里斯本", "Porto": "波多", "Sintra": "辛特拉",
-  "Copenhagen": "哥本哈根", "Odense": "奧登斯",
-  "Stockholm": "斯德哥爾摩", "Gothenburg": "哥特堡", "Malmo": "馬爾默", "Kiruna": "基律納",
-  "Oslo": "奧斯陸", "Bergen": "卑爾根", "Tromso": "特罗姆瑟",
-  "Helsinki": "赫爾辛基", "Rovaniemi": "羅瓦涅米",
-  "Reykjavik": "雷克雅維克",
-  
-  // 東歐/波羅的海
-  "Prague": "布拉格", "Cesky Krumlov": "庫倫洛夫", "Brno": "布爾諾",
-  "Budapest": "布達佩斯", "Debrecen": "德布勒森",
-  "Warsaw": "華沙", "Krakow": "克拉科夫", "Gdansk": "格但斯克",
-  "Tallinn": "塔林", "Riga": "里加", "Vilnius": "維爾紐斯",
-  "Kyiv": "基輔", "Lviv": "利維夫", "Odesa": "敖德薩",
-  "Bucharest": "布加勒斯特", "Brasov": "布拉索夫", "Sibiu": "錫比烏",
-  "Sofia": "索菲亞", "Plovdiv": "普羅夫迪夫",
-  "Athens": "雅典", "Thessaloniki": "塞薩洛尼基", "Santorini": "聖托里尼", "Mykonos": "米克諾斯",
-  "Istanbul": "伊斯坦堡", "Ankara": "安卡拉", "Cappadocia": "卡帕多奇亞", "Izmir": "伊茲密爾",
-
-  // 摩洛哥
-  "Merzouga": "梅爾祖卡", "Casablanca": "卡薩布蘭卡", "Rabat": "拉巴特", "Marrakech": "馬拉喀什", 
-  "Fes": "費茲", "Tangier": "丹吉爾", "Chefchaouen": "舍夫沙萬", "Essaouira": "索維拉", "Ouarzazate": "瓦爾扎扎特",
-  
-  // 台灣
+  // 亞洲
   "Taipei": "台北", "Kaohsiung": "高雄", "Taichung": "台中", "Tainan": "台南", "Taoyuan": "桃園", "Hsinchu": "新竹",
+  "Tokyo": "東京", "Osaka": "大阪", "Kyoto": "京都", "Seoul": "首爾", "Busan": "釜山", "Bangkok": "曼谷", "Chiang Mai": "清邁",
+  "Hanoi": "河內", "Ho Chi Minh City": "胡志明市", "Singapore": "新加坡", "Kuala Lumpur": "吉隆坡", "Jakarta": "雅加達", "Bali": "峇里島",
+  "Manila": "馬尼拉", "Cebu": "宿霧", "New Delhi": "新德里", "Mumbai": "孟買", "Kathmandu": "加德滿都", "Male": "馬利",
   
-  // 微型國家
+  // 歐洲 (含冷門/小鎮)
+  "London": "倫敦", "Edinburgh": "愛丁堡", "Manchester": "曼徹斯特", "Liverpool": "利物浦", "Oxford": "牛津", "Cambridge": "劍橋", "Bath": "巴斯", "York": "約克", "Cotswolds": "科茲窩",
+  "Paris": "巴黎", "Lyon": "里昂", "Nice": "尼斯", "Marseille": "馬賽", "Bordeaux": "波爾多", "Strasbourg": "史特拉斯堡", "Colmar": "科爾馬", "Annecy": "安錫", "Avignon": "亞維儂", "Chamonix": "夏慕尼", "Mont Saint-Michel": "聖米歇爾山",
+  "Berlin": "柏林", "Munich": "慕尼黑", "Frankfurt": "法蘭克福", "Hamburg": "漢堡", "Cologne": "科隆", "Heidelberg": "海德堡", "Rothenburg ob der Tauber": "羅騰堡", "Fussen": "福森", "Dresden": "德勒斯登",
+  "Amsterdam": "阿姆斯特丹", "Rotterdam": "鹿特丹", "The Hague": "海牙", "Utrecht": "烏特勒支", "Giethoorn": "羊角村", "Delft": "台夫特",
+  "Brussels": "布魯塞爾", "Bruges": "布魯日", "Ghent": "根特", "Antwerp": "安特衛普", "Dinant": "迪南",
+  "Vienna": "維也納", "Salzburg": "薩爾斯堡", "Hallstatt": "哈爾施塔特", "Innsbruck": "因斯布魯克", "Graz": "格拉茲",
+  "Zurich": "蘇黎世", "Geneva": "日內瓦", "Bern": "伯恩", "Lucerne": "琉森", "Zermatt": "策馬特", "Interlaken": "因特拉肯", "Grindelwald": "格林德瓦", "Lauterbrunnen": "勞特布龍嫩",
+  "Rome": "羅馬", "Milan": "米蘭", "Venice": "威尼斯", "Florence": "佛羅倫斯", "Naples": "拿坡里", "Pisa": "比薩", "Cinque Terre": "五漁村", "Positano": "波西塔諾", "Amalfi": "阿瑪菲", "Sorrento": "蘇連多", "Alberobello": "阿爾貝羅貝洛", "Matera": "馬泰拉", "Como": "科莫",
+  "Madrid": "馬德里", "Barcelona": "巴塞隆納", "Seville": "塞維亞", "Granada": "格拉納達", "Valencia": "瓦倫西亞", "Toledo": "托雷多", "Segovia": "塞哥維亞", "Ronda": "隆達", "Cordoba": "哥多華",
+  "Lisbon": "里斯本", "Porto": "波多", "Sintra": "辛特拉", "Cascais": "卡斯凱什", "Obidos": "奧比杜什", "Lagos": "拉哥斯",
+  "Copenhagen": "哥本哈根", "Odense": "奧登斯", "Aarhus": "奧胡斯",
+  "Stockholm": "斯德哥爾摩", "Gothenburg": "哥特堡", "Malmo": "馬爾默", "Kiruna": "基律納", "Abisko": "阿比斯庫",
+  "Oslo": "奧斯陸", "Bergen": "卑爾根", "Tromso": "特罗姆瑟", "Stavanger": "斯塔萬格", "Lofoten": "羅弗敦群島",
+  "Helsinki": "赫爾辛基", "Rovaniemi": "羅瓦涅米", "Turku": "圖爾庫",
+  "Reykjavik": "雷克雅維克", "Vik": "維克", "Akureyri": "阿克雷里",
+  "Prague": "布拉格", "Cesky Krumlov": "庫倫洛夫", "Brno": "布爾諾", "Karlovy Vary": "卡羅維瓦利",
+  "Budapest": "布達佩斯", "Debrecen": "德布勒森", "Eger": "埃格爾",
+  "Warsaw": "華沙", "Krakow": "克拉科夫", "Gdansk": "格但斯克", "Wroclaw": "弗羅茨瓦夫", "Zakopane": "扎科帕內",
+  "Tallinn": "塔林", "Riga": "里加", "Vilnius": "維爾紐斯", "Trakai": "特拉凱",
+  "Dubrovnik": "杜布羅夫尼克", "Split": "斯普利特", "Zagreb": "札格瑞布", "Zadar": "札達爾", "Plitvice Lakes": "十六湖", "Hvar": "赫瓦爾", "Rovinj": "羅維尼",
+  "Ljubljana": "盧布爾雅那", "Bled": "布萊德", "Piran": "皮蘭",
+  "Kotor": "科托爾", "Budva": "布德瓦", "Perast": "佩拉斯特",
+  "Sarajevo": "塞拉耶佛", "Mostar": "莫斯塔爾",
+  "Belgrade": "貝爾格勒", "Novi Sad": "諾維薩德",
+  "Bucharest": "布加勒斯特", "Brasov": "布拉索夫", "Sibiu": "錫比烏", "Sighisoara": "錫吉什瓦拉",
+  "Sofia": "索菲亞", "Plovdiv": "普羅夫迪夫", "Veliko Tarnovo": "大特爾諾沃",
+  "Athens": "雅典", "Thessaloniki": "塞薩洛尼基", "Santorini": "聖托里尼", "Mykonos": "米克諾斯", "Meteora": "邁泰奧拉", "Zakynthos": "扎金索斯", "Rhodes": "羅德島",
+  "Istanbul": "伊斯坦堡", "Ankara": "安卡拉", "Cappadocia": "卡帕多奇亞", "Izmir": "伊茲密爾", "Antalya": "安塔利亞", "Pamukkale": "棉堡",
+
+  // 美洲
+  "New York": "紐約", "Los Angeles": "洛杉磯", "San Francisco": "舊金山", "Las Vegas": "拉斯維加斯", "Chicago": "芝加哥", "Miami": "邁阿密", "Seattle": "西雅圖", "Boston": "波士頓", "Washington D.C.": "華盛頓特區",
+  "Toronto": "多倫多", "Vancouver": "溫哥華", "Montreal": "蒙特婁", "Quebec City": "魁北克市", "Banff": "班夫",
+  "Mexico City": "墨西哥城", "Cancun": "坎昆", "Havana": "哈瓦那",
+  "Sao Paulo": "聖保羅", "Rio de Janeiro": "里約熱內盧", "Buenos Aires": "布宜諾斯艾利斯", "Santiago": "聖地牙哥", "Lima": "利馬", "Cusco": "庫斯科", "Bogota": "波哥大",
+
+  // 大洋洲
+  "Sydney": "雪梨", "Melbourne": "墨爾本", "Brisbane": "布里斯本", "Perth": "柏斯", "Gold Coast": "黃金海岸", "Cairns": "凱恩斯",
+  "Auckland": "奧克蘭", "Christchurch": "基督城", "Queenstown": "皇后鎮", "Wellington": "威靈頓", "Rotorua": "羅托魯瓦",
+
+  // 中東/非洲
+  "Dubai": "杜拜", "Abu Dhabi": "阿布達比", "Doha": "杜哈", "Riyadh": "利雅德", "Jerusalem": "耶路撒冷", "Tel Aviv": "特拉維夫", "Petra": "佩特拉", "Amman": "安曼",
+  "Cairo": "開羅", "Giza": "吉薩", "Luxor": "路克索", "Aswan": "亞斯文", "Sharm El Sheikh": "沙姆沙伊赫",
+  "Merzouga": "梅爾祖卡", "Casablanca": "卡薩布蘭卡", "Rabat": "拉巴特", "Marrakech": "馬拉喀什", "Fes": "費茲", "Chefchaouen": "舍夫沙萬",
+  "Cape Town": "開普敦", "Johannesburg": "約翰尼斯堡", "Nairobi": "奈洛比", "Zanzibar": "桑吉巴", "Victoria Falls": "維多利亞瀑布",
+
+  // 微型國家/其他
   "Magistral Palace": "馬爾他宮", "Magistral Villa": "馬爾他部",
   "Monte Carlo": "蒙地卡羅", "Vatican City": "梵蒂岡城", "San Marino": "聖馬利諾", "Vaduz": "瓦都茲", "Luxembourg City": "盧森堡市"
 };
@@ -222,87 +235,118 @@ const CITY_TRANSLATIONS = {
 const PREDEFINED_CITIES = {
   // === 亞洲 ===
   "Taiwan": ["Taipei", "Kaohsiung", "Taichung", "Tainan", "Taoyuan", "Hsinchu", "Keelung", "Chiayi", "Hualien", "Taitung"],
-  "Japan": ["Tokyo", "Osaka", "Kyoto", "Fukuoka", "Sapporo", "Okinawa", "Nagoya"],
-  "South Korea": ["Seoul", "Busan", "Incheon", "Jeju", "Daegu"],
-  "Thailand": ["Bangkok", "Chiang Mai", "Phuket", "Krabi"],
-  "Vietnam": ["Hanoi", "Ho Chi Minh City", "Da Nang", "Hoi An"],
-  
-  // === 巴爾幹半島 ===
-  "North Macedonia": ["Skopje", "Ohrid", "Bitola", "Kumanovo", "Prilep", "Tetovo", "Veles", "Stip", "Gostivar", "Strumica"],
-  "Kosovo": ["Pristina", "Prizren", "Peja", "Gjakova", "Mitrovica"],
-  "Montenegro": ["Podgorica", "Kotor", "Budva", "Bar", "Herceg Novi", "Tivat", "Cetinje"],
-  "Bosnia and Herzegovina": ["Sarajevo", "Mostar", "Banja Luka", "Tuzla", "Zenica", "Neum"],
-  "Albania": ["Tirana", "Durres", "Vlore", "Shkoder", "Sarande", "Berat", "Gjirokaster"],
-  "Serbia": ["Belgrade", "Novi Sad", "Nis", "Kragujevac", "Subotica"],
-  "Croatia": ["Zagreb", "Split", "Dubrovnik", "Zadar", "Rijeka", "Pula", "Hvar"],
-  "Slovenia": ["Ljubljana", "Maribor", "Bled", "Koper", "Piran"],
-  "Bulgaria": ["Sofia", "Plovdiv", "Varna", "Burgas", "Veliko Tarnovo"],
-  "Romania": ["Bucharest", "Cluj-Napoca", "Timisoara", "Iasi", "Brasov", "Sibiu", "Constanta"],
-  "Greece": ["Athens", "Thessaloniki", "Patras", "Heraklion", "Santorini", "Mykonos", "Rhodes", "Corfu"],
+  "Japan": ["Tokyo", "Osaka", "Kyoto", "Fukuoka", "Sapporo", "Okinawa", "Nagoya", "Nara", "Kobe", "Hiroshima", "Hakone"],
+  "South Korea": ["Seoul", "Busan", "Incheon", "Jeju", "Daegu", "Gyeongju"],
+  "China": ["Beijing", "Shanghai", "Guangzhou", "Shenzhen", "Chengdu", "Xi'an", "Hangzhou", "Guilin", "Lijiang"],
+  "Hong Kong": ["Hong Kong", "Kowloon"],
+  "Macao": ["Macao"],
+  "Thailand": ["Bangkok", "Chiang Mai", "Phuket", "Krabi", "Pattaya", "Koh Samui", "Ayutthaya"],
+  "Vietnam": ["Hanoi", "Ho Chi Minh City", "Da Nang", "Hoi An", "Nha Trang", "Phu Quoc", "Ha Long", "Sapa"],
+  "Singapore": ["Singapore"],
+  "Malaysia": ["Kuala Lumpur", "Penang", "Malacca", "Langkawi", "Kota Kinabalu"],
+  "Philippines": ["Manila", "Cebu", "Boracay", "Palawan", "Davao"],
+  "Indonesia": ["Jakarta", "Bali", "Yogyakarta", "Surabaya", "Bandung", "Lombok"],
+  "India": ["New Delhi", "Mumbai", "Bangalore", "Chennai", "Kolkata", "Jaipur", "Agra", "Varanasi"],
+  "Cambodia": ["Phnom Penh", "Siem Reap", "Sihanoukville"],
+  "Myanmar": ["Yangon", "Mandalay", "Bagan", "Inle Lake"],
+  "Laos": ["Vientiane", "Luang Prabang", "Vang Vieng"],
+  "Nepal": ["Kathmandu", "Pokhara", "Chitwan"],
+  "Maldives": ["Male", "Maafushi"],
 
-  // === 西歐 ===
-  "United Kingdom": ["London", "Edinburgh", "Manchester", "Birmingham", "Liverpool", "Glasgow", "Bristol", "Oxford", "Cambridge", "Belfast", "Cardiff"],
-  "Ireland": ["Dublin", "Cork", "Galway", "Limerick", "Kilkenny"],
-  "France": ["Paris", "Lyon", "Marseille", "Nice", "Toulouse", "Bordeaux", "Strasbourg", "Lille", "Nantes", "Montpellier", "Avignon", "Cannes"],
-  "Netherlands": ["Amsterdam", "Rotterdam", "The Hague", "Utrecht", "Eindhoven", "Maastricht", "Delft"],
-  "Belgium": ["Brussels", "Antwerp", "Ghent", "Bruges", "Liege", "Leuven"],
-  "Luxembourg": ["Luxembourg City", "Esch-sur-Alzette"],
-  "Monaco": ["Monte Carlo", "Monaco-Ville", "La Condamine"],
-  
-  // === 中歐 ===
-  "Germany": ["Berlin", "Munich", "Hamburg", "Frankfurt", "Cologne", "Stuttgart", "Dusseldorf", "Leipzig", "Dresden", "Heidelberg", "Nuremberg"],
-  "Switzerland": ["Zurich", "Geneva", "Basel", "Lausanne", "Bern", "Lucerne", "Interlaken", "Zermatt", "Lugano"],
-  "Austria": ["Vienna", "Salzburg", "Innsbruck", "Graz", "Linz", "Hallstatt"],
-  "Liechtenstein": ["Vaduz", "Schaan"],
-  "Poland": ["Warsaw", "Krakow", "Lodz", "Wroclaw", "Poznan", "Gdansk", "Szczecin"],
-  "Czech Republic": ["Prague", "Brno", "Ostrava", "Plzen", "Cesky Krumlov", "Karlovy Vary"],
-  "Slovakia": ["Bratislava", "Kosice", "Presov", "Zilina"],
-  "Hungary": ["Budapest", "Debrecen", "Szeged", "Miskolc", "Pecs", "Gyor"],
-
-  // === 南歐 ===
-  "Italy": ["Rome", "Milan", "Naples", "Turin", "Palermo", "Genoa", "Bologna", "Florence", "Venice", "Verona", "Pisa", "Siena", "Cinque Terre", "Amalfi"],
-  "Spain": ["Madrid", "Barcelona", "Valencia", "Seville", "Zaragoza", "Malaga", "Bilbao", "Granada", "Cordoba", "Toledo", "Ibiza", "Palma"],
-  "Portugal": ["Lisbon", "Porto", "Vila Nova de Gaia", "Braga", "Coimbra", "Faro", "Sintra", "Cascais"],
-  "Malta": ["Valletta", "Mdina", "Sliema", "St. Julian's", "Marsaxlokk"],
+  // === 歐洲 (含熱門與冷門/小鎮) ===
+  "United Kingdom": ["London", "Edinburgh", "Manchester", "Liverpool", "Oxford", "Cambridge", "Bath", "York", "Bristol", "Glasgow", "Belfast", "Cardiff", "Brighton", "Cotswolds", "Inverness"],
+  "Ireland": ["Dublin", "Cork", "Galway", "Limerick", "Kilkenny", "Killarney"],
+  "France": ["Paris", "Lyon", "Marseille", "Nice", "Bordeaux", "Strasbourg", "Colmar", "Annecy", "Avignon", "Toulouse", "Lille", "Nantes", "Montpellier", "Cannes", "Chamonix", "Mont Saint-Michel", "Saint-Malo", "Aix-en-Provence"],
+  "Netherlands": ["Amsterdam", "Rotterdam", "The Hague", "Utrecht", "Eindhoven", "Maastricht", "Delft", "Giethoorn", "Leiden", "Haarlem"],
+  "Belgium": ["Brussels", "Antwerp", "Ghent", "Bruges", "Liege", "Leuven", "Dinant"],
+  "Luxembourg": ["Luxembourg City", "Esch-sur-Alzette", "Vianden"],
+  "Monaco": ["Monte Carlo", "Monaco-Ville"],
+  "Germany": ["Berlin", "Munich", "Hamburg", "Frankfurt", "Cologne", "Heidelberg", "Dresden", "Nuremberg", "Stuttgart", "Dusseldorf", "Leipzig", "Rothenburg ob der Tauber", "Fussen", "Bremen", "Bonn"],
+  "Switzerland": ["Zurich", "Geneva", "Bern", "Lucerne", "Interlaken", "Zermatt", "Basel", "Lausanne", "Grindelwald", "Lauterbrunnen", "Lugano", "Montreux", "St. Moritz"],
+  "Austria": ["Vienna", "Salzburg", "Innsbruck", "Graz", "Linz", "Hallstatt", "Bregenz", "Melk"],
+  "Liechtenstein": ["Vaduz"],
+  "Italy": ["Rome", "Milan", "Venice", "Florence", "Naples", "Pisa", "Verona", "Bologna", "Turin", "Genoa", "Palermo", "Cinque Terre", "Amalfi", "Positano", "Sorrento", "Siena", "Como", "Matera", "Alberobello", "Catania"],
+  "Spain": ["Madrid", "Barcelona", "Valencia", "Seville", "Granada", "Malaga", "Bilbao", "Zaragoza", "Cordoba", "Toledo", "Segovia", "Ronda", "San Sebastian", "Ibiza", "Palma", "Santiago de Compostela"],
+  "Portugal": ["Lisbon", "Porto", "Sintra", "Faro", "Coimbra", "Braga", "Cascais", "Obidos", "Lagos", "Evora", "Madeira", "Azores"],
+  "Greece": ["Athens", "Thessaloniki", "Santorini", "Mykonos", "Crete", "Rhodes", "Corfu", "Zakynthos", "Meteora", "Delphi", "Nafplio"],
+  "Turkey": ["Istanbul", "Ankara", "Izmir", "Cappadocia", "Antalya", "Pamukkale", "Bodrum", "Ephesus", "Bursa"],
+  "Czech Republic": ["Prague", "Cesky Krumlov", "Brno", "Karlovy Vary", "Plzen", "Olomouc", "Kutna Hora"],
+  "Hungary": ["Budapest", "Debrecen", "Eger", "Pecs", "Szentendre", "Tokaj"],
+  "Poland": ["Warsaw", "Krakow", "Gdansk", "Wroclaw", "Poznan", "Lodz", "Zakopane", "Torun"],
+  "Croatia": ["Zagreb", "Dubrovnik", "Split", "Zadar", "Rijeka", "Pula", "Hvar", "Rovinj", "Plitvice Lakes", "Sibenik"],
+  "Slovenia": ["Ljubljana", "Bled", "Piran", "Maribor", "Koper", "Postojna"],
+  "Montenegro": ["Podgorica", "Kotor", "Budva", "Perast", "Tivat", "Herceg Novi"],
+  "Bosnia and Herzegovina": ["Sarajevo", "Mostar", "Banja Luka", "Blagaj", "Trebinje"],
+  "Serbia": ["Belgrade", "Novi Sad", "Nis", "Subotica"],
+  "Romania": ["Bucharest", "Brasov", "Sibiu", "Cluj-Napoca", "Timisoara", "Sighisoara", "Sinaia", "Constanta"],
+  "Bulgaria": ["Sofia", "Plovdiv", "Varna", "Burgas", "Veliko Tarnovo", "Rila"],
+  "North Macedonia": ["Skopje", "Ohrid", "Bitola", "Matka"],
+  "Albania": ["Tirana", "Durres", "Berat", "Gjirokaster", "Sarande", "Shkoder", "Vlore"],
+  "Kosovo": ["Pristina", "Prizren", "Peja"],
+  "Sweden": ["Stockholm", "Gothenburg", "Malmo", "Uppsala", "Kiruna", "Abisko", "Visby", "Lund"],
+  "Norway": ["Oslo", "Bergen", "Trondheim", "Stavanger", "Tromso", "Lofoten", "Alesund", "Flam"],
+  "Denmark": ["Copenhagen", "Aarhus", "Odense", "Aalborg", "Billund", "Roskilde"],
+  "Finland": ["Helsinki", "Rovaniemi", "Turku", "Tampere", "Espoo", "Oulu", "Porvoo"],
+  "Iceland": ["Reykjavik", "Vik", "Akureyri", "Hofn", "Selfoss", "Keflavik"],
+  "Estonia": ["Tallinn", "Tartu", "Parnu"],
+  "Latvia": ["Riga", "Jurmala", "Sigulda"],
+  "Lithuania": ["Vilnius", "Kaunas", "Klaipeda", "Trakai", "Siauliai"],
+  "Malta": ["Valletta", "Mdina", "Sliema", "St. Julian's", "Gozo", "Marsaxlokk"],
+  "Cyprus": ["Nicosia", "Limassol", "Larnaca", "Paphos", "Ayia Napa"],
   "San Marino": ["San Marino", "Serravalle"],
   "Vatican City": ["Vatican City"],
   "Andorra": ["Andorra la Vella"],
   "Sovereign Military Order of Malta": ["Magistral Palace", "Magistral Villa"],
   "Gibraltar": ["Gibraltar"],
+  "Russia": ["Moscow", "Saint Petersburg", "Kazan", "Sochi", "Vladivostok", "Irkutsk", "Yekaterinburg"],
+  "Ukraine": ["Kyiv", "Lviv", "Odesa", "Kharkiv"],
+  "Belarus": ["Minsk", "Brest", "Grodno"],
+  "Moldova": ["Chisinau", "Tiraspol"],
+  "Georgia": ["Tbilisi", "Batumi", "Kutaisi", "Kazbegi", "Sighnaghi"],
+  "Armenia": ["Yerevan", "Gyumri", "Dilijan"],
+  "Azerbaijan": ["Baku", "Ganja", "Sheki"],
 
-  // === 北歐 & 波羅的海 ===
-  "Sweden": ["Stockholm", "Gothenburg", "Malmo", "Uppsala", "Kiruna", "Abisko"],
-  "Norway": ["Oslo", "Bergen", "Trondheim", "Stavanger", "Tromso", "Lofoten"],
-  "Denmark": ["Copenhagen", "Aarhus", "Odense", "Aalborg"],
-  "Finland": ["Helsinki", "Espoo", "Tampere", "Vantaa", "Oulu", "Rovaniemi", "Turku"],
-  "Iceland": ["Reykjavik", "Kopavogur", "Hafnarfjordur", "Akureyri", "Vik"],
-  "Estonia": ["Tallinn", "Tartu", "Narva", "Parnu"],
-  "Latvia": ["Riga", "Daugavpils", "Liepaja", "Jelgava"],
-  "Lithuania": ["Vilnius", "Kaunas", "Klaipeda", "Siauliai"],
-  "Faroe Islands": ["Torshavn"],
+  // === 美洲 ===
+  "United States": ["New York", "Los Angeles", "San Francisco", "Las Vegas", "Chicago", "Miami", "Orlando", "Washington D.C.", "Boston", "Seattle", "San Diego", "Honolulu", "Austin", "New Orleans", "Denver", "Atlanta", "Philadelphia"],
+  "Canada": ["Toronto", "Vancouver", "Montreal", "Quebec City", "Ottawa", "Calgary", "Banff", "Whistler", "Victoria", "Halifax"],
+  "Mexico": ["Mexico City", "Cancun", "Tulum", "Playa del Carmen", "Guadalajara", "Monterrey", "Oaxaca", "Cabo San Lucas"],
+  "Brazil": ["Rio de Janeiro", "Sao Paulo", "Brasilia", "Salvador", "Foz do Iguacu", "Manaus"],
+  "Argentina": ["Buenos Aires", "Mendoza", "Bariloche", "Ushuaia", "Cordoba", "El Calafate"],
+  "Chile": ["Santiago", "Valparaiso", "San Pedro de Atacama", "Punta Arenas", "Easter Island"],
+  "Peru": ["Lima", "Cusco", "Machu Picchu", "Arequipa", "Puno"],
+  "Colombia": ["Bogota", "Medellin", "Cartagena", "Cali"],
+  "Cuba": ["Havana", "Varadero", "Trinidad"],
+  "Costa Rica": ["San Jose", "La Fortuna", "Monteverde", "Manuel Antonio"],
+  "Panama": ["Panama City", "Bocas del Toro"],
 
-  // === 東歐 & 其他 ===
-  "Ukraine": ["Kyiv", "Kharkiv", "Odesa", "Dnipro", "Donetsk", "Lviv"],
-  "Belarus": ["Minsk", "Gomel", "Mogilev"],
-  "Moldova": ["Chisinau", "Tiraspol", "Balti"],
-  "Russia": ["Moscow", "Saint Petersburg", "Novosibirsk", "Yekaterinburg", "Kazan", "Sochi", "Vladivostok"],
-  "Turkey": ["Istanbul", "Ankara", "Izmir", "Bursa", "Antalya", "Adana", "Gaziantep", "Cappadocia", "Pamukkale"],
-  "Cyprus": ["Nicosia", "Limassol", "Larnaca", "Paphos"],
-  "Georgia": ["Tbilisi", "Batumi", "Kutaisi", "Rustavi"],
-  "Armenia": ["Yerevan", "Gyumri", "Vanadzor"],
-  "Azerbaijan": ["Baku", "Ganja", "Sumqayit"],
+  // === 大洋洲 ===
+  "Australia": ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide", "Gold Coast", "Cairns", "Canberra", "Hobart", "Darwin", "Alice Springs", "Byron Bay"],
+  "New Zealand": ["Auckland", "Wellington", "Christchurch", "Queenstown", "Rotorua", "Dunedin", "Taupo", "Wanaka", "Milford Sound"],
+  "Fiji": ["Nadi", "Suva"],
+  "Palau": ["Koror"],
+  "Guam": ["Tumon", "Hagatna"],
 
-  // === 非洲 (摩洛哥熱門) ===
-  "Morocco": ["Merzouga", "Casablanca", "Rabat", "Marrakech", "Fes", "Tangier", "Chefchaouen", "Essaouira", "Ouarzazate"],
+  // === 中東 & 非洲 ===
+  "United Arab Emirates": ["Dubai", "Abu Dhabi", "Sharjah"],
+  "Qatar": ["Doha"],
+  "Saudi Arabia": ["Riyadh", "Jeddah", "Mecca", "Medina", "Al Ula"],
+  "Jordan": ["Amman", "Petra", "Wadi Rum", "Aqaba", "Dead Sea"],
+  "Israel": ["Jerusalem", "Tel Aviv", "Haifa", "Eilat", "Nazareth"],
+  "Egypt": ["Cairo", "Giza", "Luxor", "Aswan", "Hurghada", "Sharm El Sheikh", "Alexandria"],
+  "Morocco": ["Marrakech", "Casablanca", "Fes", "Chefchaouen", "Rabat", "Tangier", "Essaouira", "Merzouga", "Ouarzazate", "Agadir"],
+  "South Africa": ["Cape Town", "Johannesburg", "Durban", "Pretoria", "Kruger National Park", "Stellenbosch"],
+  "Kenya": ["Nairobi", "Mombasa", "Masai Mara"],
+  "Tanzania": ["Dar es Salaam", "Zanzibar", "Arusha", "Serengeti", "Kilimanjaro"],
+  "Mauritius": ["Port Louis", "Grand Baie"],
+  "Seychelles": ["Victoria", "Praslin", "La Digue"],
+  "Tunisia": ["Tunis", "Sousse", "Djerba"],
   
-  // === 有限承認國家/地區 ===
+  // === 有限承認/屬地/其他 ===
   "Transnistria": ["Tiraspol", "Bendery"],
   "Northern Cyprus": ["North Nicosia", "Kyrenia", "Famagusta"],
-  "Abkhazia": ["Sukhumi", "Gagra"],
+  "Abkhazia": ["Sukhumi"],
   "South Ossetia": ["Tskhinvali"],
-  "Isle of Man": ["Douglas"],
-  "Jersey": ["Saint Helier"],
-  "Guernsey": ["Saint Peter Port"],
+  "Faroe Islands": ["Torshavn"],
   "Svalbard and Jan Mayen": ["Longyearbyen"]
 };
 
@@ -750,12 +794,12 @@ export default function TravelMapApp() {
     setAllCountries(countries);
   }, []);
 
-  // ★★★ 主地圖初始化邏輯 (Missing in original file) ★★★
+  // ★★★ 主地圖初始化邏輯 ★★★
   useEffect(() => {
     if (!libLoaded || !mapContainerRef.current || mapInstanceRef.current || !window.L) return;
 
     const map = window.L.map(mapContainerRef.current, {
-        zoomControl: false,
+        zoomControl: false, // 我們會手動添加並移動位置
         preferCanvas: true
     }).setView([48, 15], 4);
 
@@ -765,7 +809,9 @@ export default function TravelMapApp() {
         maxZoom: 19
     }).addTo(map);
 
-    window.L.control.zoom({ position: 'topright' }).addTo(map);
+    // ★★★ 將縮放按鈕改到左上角 ★★★
+    window.L.control.zoom({ position: 'topleft' }).addTo(map);
+    
     mapInstanceRef.current = map;
     setMapLoaded(true);
 
@@ -1084,7 +1130,8 @@ export default function TravelMapApp() {
         statsCard.style.right = '40px'; // Move to top-right
         statsCard.style.padding = '30px';
         statsCard.style.borderRadius = '24px';
-        statsCard.style.minWidth = '600px'; // 加寬
+        // ★★★ 修正手機版匯出圖片空白問題：使用 fit-content ★★★
+        statsCard.style.width = 'fit-content'; 
     } else {
         statsCard.style.top = '20px';
         statsCard.style.right = '20px';
@@ -1111,12 +1158,12 @@ export default function TravelMapApp() {
     
     if (isMobileExport) {
         statsContentHtml = `
-            <div style="display: flex; align-items: center; justify-content: flex-start; gap: 30px; width: 100%;">
+            <div style="display: flex; align-items: center; justify-content: flex-start; gap: 30px;">
                 <div style="display: flex; align-items: center; gap: 12px;">
                      <div style="background-color: #fef9c3; padding: 12px; border-radius: 9999px;">
                         <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
                     </div>
-                    <span style="font-weight: bold; color: #374151; font-size: ${fontSizeTitle};">旅程足跡</span>
+                    <span style="font-weight: bold; color: #374151; font-size: ${fontSizeTitle}; white-space: nowrap;">旅程足跡</span>
                 </div>
                 
                 <div style="display: flex; align-items: center; gap: 40px;">
@@ -1655,16 +1702,17 @@ export default function TravelMapApp() {
                 </button>
             </div>
             
-            <div className="p-4 bg-blue-50 flex flex-wrap gap-4 items-end border-b">
-                <div>
+            {/* ★★★ 優化手機版匯出選單排版：垂直排列 ★★★ */}
+            <div className="p-4 bg-blue-50 flex flex-col md:flex-row flex-wrap gap-4 items-stretch md:items-end border-b">
+                <div className="flex-1">
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">開始日期</label>
-                    <input type="date" className="p-2 border rounded" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} />
+                    <input type="date" className="w-full p-2 border rounded" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} />
                 </div>
-                <div>
+                <div className="flex-1">
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">結束日期</label>
-                    <input type="date" className="p-2 border rounded" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} />
+                    <input type="date" className="w-full p-2 border rounded" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} />
                 </div>
-                <button onClick={downloadImage} disabled={isCapturing} className="ml-auto px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded shadow flex items-center gap-2">
+                <button onClick={downloadImage} disabled={isCapturing} className="w-full md:w-auto ml-auto px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded shadow flex items-center justify-center gap-2">
                     {isCapturing ? <Loader className="animate-spin"/> : <Download size={18}/>}
                     下載圖片 (.PNG)
                 </button>
