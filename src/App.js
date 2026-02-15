@@ -1072,14 +1072,19 @@ export default function TravelMapApp() {
     if (!mapInstanceRef.current || !window.L) return;
     const map = mapInstanceRef.current;
     const L = window.L;
+    
+    // Clear existing layers
     layersRef.current.forEach(layer => map.removeLayer(layer));
     layersRef.current = [];
+    
     if (pickerMarkerRef.current) { map.removeLayer(pickerMarkerRef.current); pickerMarkerRef.current = null; }
 
+    // Render Visited Countries
     if (geoJsonLayerRef.current) {
         const visitedCountries = visitedCountriesRef.current;
         geoJsonLayerRef.current.eachLayer((layer) => {
           let countryName = layer.feature.properties.name || layer.feature.properties.ADMIN;
+          
           const nameMapping = {
               "United States of America": "United States", "USA": "United States",
               "England": "United Kingdom", "Great Britain": "United Kingdom", "UK": "United Kingdom",
@@ -1091,6 +1096,7 @@ export default function TravelMapApp() {
               "Macedonia": "North Macedonia", "The former Yugoslav Republic of Macedonia": "North Macedonia"
           };
           if (nameMapping[countryName]) { countryName = nameMapping[countryName]; }
+
           if (visitedCountries.has(countryName)) {
             layer.setStyle({ fillColor: '#fcd34d', fillOpacity: 0.8, weight: 1 });
           } else { layer.setStyle({ fillColor: '#cbd5e1', fillOpacity: 0.5 }); }
@@ -1098,27 +1104,47 @@ export default function TravelMapApp() {
         geoJsonLayerRef.current.bringToBack();
     }
 
+    // Render Trips
     tripsToRender.forEach(trip => {
       if (trip.originLat && trip.originLng && trip.destLat && trip.destLng) {
         const typeConfig = TRANSPORT_TYPES[trip.transport] || TRANSPORT_TYPES.plane;
         const today = new Date().toISOString().split('T')[0];
         const isFutureOrNoDate = !trip.dateStart || trip.dateStart > today;
         const lineOptions = { color: typeConfig.color, weight: 3, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null };
+        
         let polyline;
         
+        // Popup Content Definition
+        const popupContent = `
+            <div style="font-family: sans-serif; padding: 4px;">
+                <div style="font-weight: bold; color: #1e3a8a; margin-bottom: 4px;">${trip.originCity} ➝ ${trip.destCity}</div>
+                <div style="font-size: 12px; color: #4b5563;">
+                    ${trip.dateStart ? `📅 ${trip.dateStart}` : ''}
+                    ${trip.transitCity ? `<br>🔄 經由: ${trip.transitCity}` : ''}
+                    <br>✈️ 方式: ${TRANSPORT_TYPES[trip.transport]?.label || trip.transport}
+                </div>
+            </div>
+        `;
+
+        // Create Markers
+        const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: 5, color: typeConfig.color, fillOpacity: 1 }).addTo(map).bindPopup(popupContent);
+        const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: 5, color: typeConfig.color, fillOpacity: 1 }).addTo(map).bindPopup(popupContent);
+
         if (trip.transitLat && trip.transitLng) {
             if (trip.transport === 'plane') {
                 const curvedPoints1 = getGreatCirclePoints(trip.originLat, trip.originLng, trip.transitLat, trip.transitLng);
-                L.polyline(curvedPoints1, lineOptions).addTo(map);
+                const poly1 = L.polyline(curvedPoints1, lineOptions).addTo(map);
+                layersRef.current.push(poly1); 
+                
                 const curvedPoints2 = getGreatCirclePoints(trip.transitLat, trip.transitLng, trip.destLat, trip.destLng);
                 polyline = L.polyline(curvedPoints2, lineOptions).addTo(map);
-                layersRef.current.push(p1);
             } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
                 polyline = L.polyline(trip.routePath, lineOptions).addTo(map);
             } else {
-                const p1 = L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(map);
+                const poly1 = L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(map);
+                layersRef.current.push(poly1); 
+                
                 polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(map);
-                layersRef.current.push(p1);
             }
         } else {
             if (trip.transport === 'plane') {
@@ -1131,14 +1157,12 @@ export default function TravelMapApp() {
             }
         }
         
-        if (polyline) polyline.bindPopup(popupContent);
-        // Fix for binding popup to previous segment
-        const lastLayer = layersRef.current[layersRef.current.length - 1]; 
-        if (lastLayer && lastLayer.bindPopup) {
-             lastLayer.bindPopup(popupContent);
+        if (polyline) {
+            polyline.bindPopup(popupContent);
+            layersRef.current.push(polyline);
         }
-
-        layersRef.current.push(polyline, originMarker, destMarker);
+        
+        layersRef.current.push(originMarker, destMarker);
       }
     });
   }, []);
