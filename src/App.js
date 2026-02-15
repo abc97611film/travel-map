@@ -2,9 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy, List, ChevronUp, ChevronDown } from 'lucide-react';
-
-// 注意：我們使用 CDN 動態載入 Leaflet 與 html2canvas，以相容預覽環境與本機環境
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, ArrowRight, Trophy, List, ChevronUp, ChevronDown } from 'lucide-react';
 
 // -----------------------------------------------------------------------------
 // 0. 工具函式：計算大圓航線 (Great Circle Path)
@@ -359,8 +357,6 @@ export default function TravelMapApp() {
   const [isStatsOpen, setIsStatsOpen] = useState(true);
   const [isTransportOpen, setIsTransportOpen] = useState(true);
 
-  // Removed PWA install states and effects
-
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
     destCountry: '', destCity: '', destLat: null, destLng: null,
@@ -642,6 +638,185 @@ export default function TravelMapApp() {
     setAllCountries(countries);
   }, []);
 
+  // ★★★ 主地圖初始化邏輯 (Missing in original file) ★★★
+  useEffect(() => {
+    if (!libLoaded || !mapContainerRef.current || mapInstanceRef.current || !window.L) return;
+
+    const map = window.L.map(mapContainerRef.current, {
+        zoomControl: false,
+        preferCanvas: true
+    }).setView([48, 15], 4);
+
+    window.L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '',
+        subdomains: 'abcd',
+        maxZoom: 19
+    }).addTo(map);
+
+    window.L.control.zoom({ position: 'topright' }).addTo(map);
+    mapInstanceRef.current = map;
+    setMapLoaded(true);
+
+    // 載入 GeoJSON 世界地圖
+    fetch('https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson')
+        .then(res => res.json())
+        .then(data => {
+            if (geoJsonLayerRef.current) map.removeLayer(geoJsonLayerRef.current);
+            geoJsonLayerRef.current = window.L.geoJSON(data, {
+                style: {
+                    fillColor: '#cbd5e1',
+                    weight: 1,
+                    opacity: 1,
+                    color: 'white',
+                    fillOpacity: 0.5
+                }
+            }).addTo(map);
+            geoJsonLayerRef.current.bringToBack();
+        })
+        .catch(err => console.error("GeoJSON Error:", err));
+        
+    // 點擊事件 (For Picking Location)
+    map.on('click', async (e) => {
+        if (!pickingLocationMode.current) return;
+        
+        const { lat, lng } = e.latlng;
+        
+        // 更新表單座標
+        const type = pickingLocationMode.current;
+        let updates = {};
+        if (type === 'origin') updates = { originLat: lat, originLng: lng };
+        else if (type === 'dest') updates = { destLat: lat, destLng: lng };
+        else if (type === 'transit') updates = { transitLat: lat, transitLng: lng };
+        
+        setFormData(prev => ({ ...prev, ...updates }));
+        
+        // 嘗試反向地理編碼 (Optional)
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`);
+            const data = await res.json();
+            if (data && data.address) {
+                const city = data.address.city || data.address.town || data.address.village || '';
+                if (city) {
+                    if (type === 'origin') updates.originCity = city;
+                    else if (type === 'dest') updates.destCity = city;
+                    else if (type === 'transit') updates.transitCity = city;
+                    setFormData(prev => ({ ...prev, ...updates }));
+                }
+            }
+        } catch(err) {
+            console.warn("Reverse geocoding failed", err);
+        }
+        
+        // 結束 Picking Mode
+        pickingLocationMode.current = null;
+        setIsPickingMode(false);
+        setIsModalOpen(true); // 重新打開 Modal
+    });
+
+  }, [libLoaded]);
+
+  // ★★★ 繪製地圖上的路線與標記 ★★★
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.L || !mapLoaded) return;
+    
+    const map = mapInstanceRef.current;
+    
+    // 清除舊圖層
+    layersRef.current.forEach(layer => map.removeLayer(layer));
+    layersRef.current = [];
+
+    // 更新 GeoJSON 高亮
+    if (geoJsonLayerRef.current) {
+        geoJsonLayerRef.current.eachLayer(layer => {
+            let countryName = layer.feature.properties.name || layer.feature.properties.ADMIN;
+             const nameMapping = {
+                "United States of America": "United States", "USA": "United States",
+                "England": "United Kingdom", "Great Britain": "United Kingdom", "UK": "United Kingdom",
+                "South Korea": "South Korea", "Republic of Korea": "South Korea", "Korea, South": "South Korea",
+                "People's Republic of China": "China", "Republic of Serbia": "Serbia",
+                "The Bahamas": "Bahamas", "Bahamas, The": "Bahamas",
+                "Myanmar": "Myanmar", "Burma": "Myanmar",
+                "Czech Republic": "Czech Republic", "Czechia": "Czech Republic",
+                "Macedonia": "North Macedonia", "The former Yugoslav Republic of Macedonia": "North Macedonia"
+            };
+            if (nameMapping[countryName]) { countryName = nameMapping[countryName]; }
+            
+            if (visitedCountriesRef.current.has(countryName)) {
+                layer.setStyle({ fillColor: '#fcd34d', fillOpacity: 0.8, weight: 1 });
+            } else {
+                layer.setStyle({ fillColor: '#cbd5e1', weight: 1, opacity: 1, color: 'white', fillOpacity: 0.5 });
+            }
+        });
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+
+    trips.forEach(trip => {
+      if (trip.originLat && trip.originLng && trip.destLat && trip.destLng) {
+          const typeConfig = TRANSPORT_TYPES[trip.transport] || TRANSPORT_TYPES.plane;
+          const isFutureOrNoDate = !trip.dateStart || trip.dateStart > today;
+          const lineOptions = { 
+              color: typeConfig.color, 
+              weight: 3, 
+              opacity: 0.7, 
+              dashArray: isFutureOrNoDate ? '5, 10' : null 
+          };
+          
+          let polyline;
+          
+          // 繪製線條
+          if (trip.transitLat && trip.transitLng) {
+            if (trip.transport === 'plane') {
+                const p1 = getGreatCirclePoints(trip.originLat, trip.originLng, trip.transitLat, trip.transitLng);
+                const l1 = window.L.polyline(p1, lineOptions).addTo(map);
+                layersRef.current.push(l1);
+                
+                const p2 = getGreatCirclePoints(trip.transitLat, trip.transitLng, trip.destLat, trip.destLng);
+                const l2 = window.L.polyline(p2, lineOptions).addTo(map);
+                layersRef.current.push(l2);
+            } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
+                 polyline = window.L.polyline(trip.routePath, lineOptions).addTo(map);
+                 layersRef.current.push(polyline);
+            } else {
+                 const l1 = window.L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(map);
+                 layersRef.current.push(l1);
+                 const l2 = window.L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(map);
+                 layersRef.current.push(l2);
+            }
+            
+            // 轉運點標記
+            const tm = window.L.circleMarker([trip.transitLat, trip.transitLng], { radius: 3, color: '#666', fillOpacity: 1 }).addTo(map);
+            tm.bindPopup(`<b>轉運: ${trip.transitCity}</b>`);
+            layersRef.current.push(tm);
+
+          } else {
+             if (trip.transport === 'plane') {
+                 const curvedPoints = getGreatCirclePoints(trip.originLat, trip.originLng, trip.destLat, trip.destLng);
+                 polyline = window.L.polyline(curvedPoints, lineOptions).addTo(map);
+                 layersRef.current.push(polyline);
+             } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
+                 polyline = window.L.polyline(trip.routePath, lineOptions).addTo(map);
+                 layersRef.current.push(polyline);
+             } else {
+                 polyline = window.L.polyline([[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]], lineOptions).addTo(map);
+                 layersRef.current.push(polyline);
+             }
+          }
+
+          // 起訖點標記
+          const m1 = window.L.circleMarker([trip.originLat, trip.originLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
+          m1.bindPopup(`<b>${trip.originCity}</b><br/>${trip.dateStart}`);
+          layersRef.current.push(m1);
+          
+          const m2 = window.L.circleMarker([trip.destLat, trip.destLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
+          m2.bindPopup(`<b>${trip.destCity}</b>`);
+          layersRef.current.push(m2);
+      }
+    });
+
+  }, [trips, mapLoaded]);
+
+
   const downloadImage = useCallback(async () => {
       if (!exportPreviewRef.current) return;
       setIsCapturing(true);
@@ -909,6 +1084,10 @@ export default function TravelMapApp() {
 
     filteredTrips.forEach(trip => {
       if (trip.originLat && trip.originLng && trip.destLat && trip.destLng) {
+        hasData = true;
+        bounds.extend([trip.originLat, trip.originLng]);
+        bounds.extend([trip.destLat, trip.destLng]);
+
         const typeConfig = TRANSPORT_TYPES[trip.transport] || TRANSPORT_TYPES.plane;
         const isFutureOrNoDate = !trip.dateStart || trip.dateStart > today;
         const lineOptions = { color: typeConfig.color, weight: isMobileExport ? 6 : 4, opacity: 0.8, dashArray: isFutureOrNoDate ? '10, 10' : null };
@@ -973,13 +1152,172 @@ export default function TravelMapApp() {
     return () => { if (container._exportMap) { container._exportMap.remove(); } };
   }, [showExportPreview, exportStartDate, exportEndDate, trips, currentMapId, downloadImage]);
 
-  const fetchCitiesForCountry = useCallback(async (country, type) => {
-    if (!country) return;
-    let setCities, setLoading, setManual;
-    if (type === 'origin') { setCities = setOriginCities; setLoading = setIsLoadingOriginCities; setManual = setIsOriginManual; fieldCountry = 'originCountry'; fieldCity = 'originCity'; fieldLat = 'originLat'; fieldLng = 'originLng'; label = '出發城市/地點'; placeholder = '例如: 台北'; } 
-    else if (type === 'dest') { setCities = setDestCities; setLoading = setIsLoadingDestCities; setManual = setIsDestManual; fieldCountry = 'destCountry'; fieldCity = 'destCity'; fieldLat = 'destLat'; fieldLng = 'destLng'; label = '抵達城市/地點'; placeholder = '例如: 東京'; } 
-    else { cities = transitCities; isLoading = isLoadingTransitCities; isManual = isTransitManual; setManual = setIsTransitManual; fieldCountry = 'transitCountry'; fieldCity = 'transitCity'; fieldLat = 'transitLat'; fieldLng = 'transitLng'; label = '中途轉運點 (選填)'; placeholder = '例如: 香港'; }
+  // ★★★ Helper Functions that were missing ★★★
+
+  const openModal = (targetCountry, tripToEdit = null) => {
+    if (tripToEdit) {
+      setEditingId(tripToEdit.id);
+      setFormData({
+        originCountry: tripToEdit.originCountry || '', originCity: tripToEdit.originCity || '', originLat: tripToEdit.originLat, originLng: tripToEdit.originLng,
+        destCountry: tripToEdit.destCountry || '', destCity: tripToEdit.destCity || '', destLat: tripToEdit.destLat, destLng: tripToEdit.destLng,
+        transitCountry: tripToEdit.transitCountry || '', transitCity: tripToEdit.transitCity || '', transitLat: tripToEdit.transitLat, transitLng: tripToEdit.transitLng,
+        dateStart: tripToEdit.dateStart || '', timeStart: tripToEdit.timeStart || '', dateEnd: tripToEdit.dateEnd || '', timeEnd: tripToEdit.timeEnd || '',
+        transport: tripToEdit.transport || 'plane', cost: tripToEdit.cost || '', currency: tripToEdit.currency || 'EUR',
+        transportNumber: tripToEdit.transportNumber || '', seatNumber: tripToEdit.seatNumber || '', seatType: tripToEdit.seatType || '', notes: tripToEdit.notes || '',
+        targetCountry: tripToEdit.targetCountry || '', routePath: tripToEdit.routePath || null
+      });
+    } else {
+      setEditingId(null);
+      setFormData({
+        originCountry: '', originCity: '', originLat: null, originLng: null,
+        destCountry: '', destCity: '', destLat: null, destLng: null,
+        transitCountry: '', transitCity: '', transitLat: null, transitLng: null,
+        dateStart: '', timeStart: '', dateEnd: '', timeEnd: '',
+        transport: 'plane', cost: '', currency: 'EUR',
+        transportNumber: '', seatNumber: '', seatType: '', notes: '',
+        targetCountry: '', routePath: null
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const startPicking = (type) => {
+    pickingLocationMode.current = type;
+    setIsPickingMode(true);
+    setIsModalOpen(false); // Hide modal to let user pick on map
+  };
+
+  const requestDelete = (e, id) => {
+    e.stopPropagation();
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = async () => {
+      if (!deleteConfirmId || !currentMapId) return;
+      try {
+          await deleteDoc(doc(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips', deleteConfirmId));
+          setDeleteConfirmId(null);
+      } catch (e) {
+          console.error("Delete error", e);
+          alert("刪除失敗");
+      }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!currentMapId) { alert("請先登入或建立地圖 ID"); return; }
     
+    setIsSaving(true);
+    try {
+        const tripData = {
+            ...formData,
+            updatedAt: serverTimestamp()
+        };
+        
+        // 如果是開車/火車/巴士，且有起訖點座標，嘗試抓取路徑
+        const typeConfig = TRANSPORT_TYPES[formData.transport];
+        if (typeConfig && typeConfig.useRoute && formData.originLat && formData.destLat) {
+             const path = await fetchRoutePath(formData.originLat, formData.originLng, formData.destLat, formData.destLng, formData.transitLat, formData.transitLng);
+             if (path) {
+                 tripData.routePath = JSON.stringify(path); // Firestore doesn't like nested arrays sometimes, or just to be safe
+             }
+        }
+        
+        // 決定主要的「目標國家」(用於統計)
+        if (!tripData.targetCountry) {
+            if (tripData.destCountry && tripData.destCountry !== 'Taiwan') tripData.targetCountry = tripData.destCountry;
+            else if (tripData.originCountry && tripData.originCountry !== 'Taiwan') tripData.targetCountry = tripData.originCountry;
+        }
+
+        if (editingId) {
+            await updateDoc(doc(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips', editingId), tripData);
+        } else {
+            tripData.createdAt = serverTimestamp();
+            await addDoc(collection(db, 'artifacts', appId, 'users', currentMapId, 'travel_trips'), tripData);
+        }
+        
+        setIsModalOpen(false);
+    } catch (err) {
+        console.error("Save error:", err);
+        alert("儲存失敗: " + err.message);
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
+  // 替換原本可能有問題的 fetchCitiesForCountry，改為正規的 Render Function
+  const renderCityInput = (type) => {
+    let cities, isLoading, isManual, setManual, fieldCountry, fieldCity, fieldLat, fieldLng, label, placeholder;
+    
+    if (type === 'origin') { 
+        cities = originCities; 
+        isLoading = isLoadingOriginCities; 
+        isManual = isOriginManual; 
+        setManual = setIsOriginManual; 
+        fieldCountry = 'originCountry'; 
+        fieldCity = 'originCity'; 
+        fieldLat = 'originLat'; 
+        fieldLng = 'originLng'; 
+        label = '出發城市/地點'; 
+        placeholder = '例如: 台北'; 
+    } else if (type === 'dest') { 
+        cities = destCities; 
+        isLoading = isLoadingDestCities; 
+        isManual = isDestManual; 
+        setManual = setIsDestManual; 
+        fieldCountry = 'destCountry'; 
+        fieldCity = 'destCity'; 
+        fieldLat = 'destLat'; 
+        fieldLng = 'destLng'; 
+        label = '抵達城市/地點'; 
+        placeholder = '例如: 東京'; 
+    } else { 
+        cities = transitCities; 
+        isLoading = isLoadingTransitCities; 
+        isManual = isTransitManual; 
+        setManual = setIsTransitManual; 
+        fieldCountry = 'transitCountry'; 
+        fieldCity = 'transitCity'; 
+        fieldLat = 'transitLat'; 
+        fieldLng = 'transitLng'; 
+        label = '中途轉運點 (選填)'; 
+        placeholder = '例如: 香港'; 
+    }
+    
+    // Fetch cities helper inside
+    const handleCountryChange = async (e) => {
+        const newCountry = e.target.value;
+        
+        if (type === 'origin') {
+             setFormData(prev => ({ 
+                 ...prev, 
+                 originCountry: newCountry, originCity: '', originLat: null, originLng: null, 
+                 // Smart default: set dest country same if empty? No, keep separate.
+                 // But logic in snippet was setting destCountry too? Let's keep it simple.
+             }));
+             // Trigger fetching cities logic (simulated by just setting state for now, assuming external fetch or predefined)
+             if (PREDEFINED_CITIES[newCountry]) {
+                 setOriginCities(PREDEFINED_CITIES[newCountry].map(c => ({ value: c, label: getDisplayCityName(c) })));
+             } else {
+                 setOriginCities([]);
+             }
+        } else if (type === 'dest') {
+             setFormData(prev => ({ ...prev, destCountry: newCountry, destCity: '', destLat: null, destLng: null }));
+             if (PREDEFINED_CITIES[newCountry]) {
+                 setDestCities(PREDEFINED_CITIES[newCountry].map(c => ({ value: c, label: getDisplayCityName(c) })));
+             } else {
+                 setDestCities([]);
+             }
+        } else {
+             setFormData(prev => ({ ...prev, transitCountry: newCountry, transitCity: '', transitLat: null, transitLng: null }));
+             if (PREDEFINED_CITIES[newCountry]) {
+                 setTransitCities(PREDEFINED_CITIES[newCountry].map(c => ({ value: c, label: getDisplayCityName(c) })));
+             } else {
+                 setTransitCities([]);
+             }
+        }
+    };
+
     const currentCityValue = formData[fieldCity];
     const isCityInList = cities.some(c => c.value === currentCityValue);
     
@@ -988,16 +1326,7 @@ export default function TravelMapApp() {
         <label className="block text-sm font-semibold text-gray-700 flex justify-between">{label}{isLoading && <span className="text-xs text-blue-500 font-normal flex items-center gap-1"><RefreshCw size={10} className="animate-spin"/> 載入城市中...</span>}</label>
         <div className="mb-2">
             <select className="w-full p-2 border rounded text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData[fieldCountry]}
-                onChange={(e) => {
-                    const newCountry = e.target.value;
-                    if (type === 'origin') {
-                        setFormData(prev => ({ ...prev, originCountry: newCountry, originCity: '', originLat: null, originLng: null, destCountry: newCountry, destCity: '', destLat: null, destLng: null }));
-                        fetchCitiesForCountry(newCountry, 'origin'); fetchCitiesForCountry(newCountry, 'dest'); 
-                    } else {
-                        setFormData({ ...formData, [fieldCountry]: newCountry, [fieldCity]: '', [fieldLat]: null, [fieldLng]: null }); 
-                        fetchCitiesForCountry(newCountry, type);
-                    }
-                }}
+                onChange={handleCountryChange}
             >
                 <option value="">{type === 'transit' ? '無 (直達)' : '請選擇國家'}</option>
                 {allCountries.map(c => (<option key={c.name} value={c.name}>{c.label}</option>))}
