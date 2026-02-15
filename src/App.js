@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy, List, Share, PlusSquare, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy, List, Share, ChevronUp, ChevronDown } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 與 html2canvas，以相容預覽環境與本機環境
 
@@ -359,9 +359,6 @@ export default function TravelMapApp() {
   const [isStatsOpen, setIsStatsOpen] = useState(true);
   const [isTransportOpen, setIsTransportOpen] = useState(true);
 
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState(null); 
-
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
     destCountry: '', destCity: '', destLat: null, destLng: null,
@@ -382,35 +379,7 @@ export default function TravelMapApp() {
   const latestDataRef = useRef({ trips: [], allCountries: [] });
   const visitedCountriesRef = useRef(new Set()); 
 
-  useEffect(() => {
-    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    
-    if (isIOS && !isStandalone) {
-        setTimeout(() => setShowInstallPrompt(true), 3000);
-    }
-
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallPrompt(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-      setShowInstallPrompt(false);
-    }
-  };
+  // Removed PWA install effects
 
   useEffect(() => {
     latestDataRef.current = { trips, allCountries };
@@ -851,7 +820,7 @@ export default function TravelMapApp() {
     const fontSizeVal = isMobileExport ? '36px' : '18px';
     const gapSize = isMobileExport ? '16px' : '8px';
 
-    // ★★★ 手機版匯出：國家/城市左右並排 ★★★
+    // ★★★ 手機版匯出：國家/城市左右並排 (一列三行) ★★★
     const statsContentHtml = isMobileExport ? `
         <div style="display: flex; align-items: center; justify-content: space-between;">
             <div style="display: flex; flex-direction: column; align-items: center;">
@@ -877,15 +846,41 @@ export default function TravelMapApp() {
         </div>
     `;
 
-    statsCard.innerHTML = `
-        <div style="display: flex; align-items: center; gap: ${gapSize}; margin-bottom: ${isMobileExport ? '20px' : '10px'}; border-bottom: 1px solid #e5e7eb; padding-bottom: ${isMobileExport ? '16px' : '8px'}; justify-content: center;">
-            <div style="background-color: #fef9c3; padding: ${isMobileExport ? '12px' : '6px'}; border-radius: 9999px;">
-                <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+    // 只有非手機版匯出時才使用兩段式 (標題+內容)，手機版直接一段式橫排
+    if (isMobileExport) {
+         statsCard.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="background-color: #fef9c3; padding: 10px; border-radius: 9999px;">
+                        <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+                    </div>
+                    <span style="font-weight: bold; color: #374151; font-size: ${fontSizeTitle};">旅程足跡</span>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 30px;">
+                    <div style="display: flex; flex-direction: column; align-items: center;">
+                         <span style="font-weight: bold; font-size: 32px; color: #2563eb; line-height: 1;">${exportStats.countries}</span>
+                         <span style="font-size: 16px; color: #6b7280;">國家</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center;">
+                         <span style="font-weight: bold; font-size: 32px; color: #4f46e5; line-height: 1;">${exportStats.cities}</span>
+                         <span style="font-size: 16px; color: #6b7280;">城市</span>
+                    </div>
+                </div>
             </div>
-            <span style="font-weight: bold; color: #374151; font-size: ${fontSizeTitle};">旅程足跡</span>
-        </div>
-        ${statsContentHtml}
-    `;
+        `;
+    } else {
+        statsCard.innerHTML = `
+            <div style="display: flex; align-items: center; gap: ${gapSize}; margin-bottom: 10px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; justify-content: center;">
+                <div style="background-color: #fef9c3; padding: 6px; border-radius: 9999px;">
+                    <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+                </div>
+                <span style="font-weight: bold; color: #374151; font-size: ${fontSizeTitle};">旅程足跡</span>
+            </div>
+            ${statsContentHtml}
+        `;
+    }
+    
     mapWrapper.appendChild(statsCard);
 
     fetch('https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson')
@@ -945,6 +940,7 @@ export default function TravelMapApp() {
             } else {
                 L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(exportMap);
                 polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
+                layersRef.current.push(p1);
             }
             bounds.extend([trip.transitLat, trip.transitLng]);
         } else {
@@ -1135,7 +1131,7 @@ export default function TravelMapApp() {
         if (trip.transitLat && trip.transitLng) {
             if (trip.transport === 'plane') {
                 const curvedPoints1 = getGreatCirclePoints(trip.originLat, trip.originLng, trip.transitLat, trip.transitLng);
-                const p1 = L.polyline(curvedPoints1, lineOptions).addTo(map);
+                L.polyline(curvedPoints1, lineOptions).addTo(map);
                 const curvedPoints2 = getGreatCirclePoints(trip.transitLat, trip.transitLng, trip.destLat, trip.destLng);
                 polyline = L.polyline(curvedPoints2, lineOptions).addTo(map);
                 layersRef.current.push(p1);
@@ -1476,23 +1472,6 @@ export default function TravelMapApp() {
         </div>
       )}
 
-      {isExportModalOpen && (
-        <div className="fixed inset-0 z-[2500] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col h-[90vh] animate-in fade-in zoom-in duration-200">
-                <div className="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-xl"><h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><ImageIcon size={24} className="text-blue-600"/> 匯出地圖預覽</h2><button onClick={() => { setIsExportModalOpen(false); setShowExportPreview(false); }} className="text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-2 rounded-full"><X size={24} /></button></div>
-                <div className="flex-1 flex overflow-hidden">
-                    <div className="w-80 border-r bg-gray-50 p-6 space-y-6 overflow-y-auto">
-                        <div className="bg-blue-100 p-4 rounded-lg text-sm text-blue-800"><p>💡 此為匯出圖片的預覽。請等待地圖圖資完全載入後，再點擊下載按鈕。</p></div>
-                        <div><label className="block text-sm font-bold text-gray-700 mb-2">設定日期區間</label><div className="space-y-2"><div><label className="text-xs text-gray-500 block mb-1">開始日期</label><input type="date" className="w-full p-2 border rounded" value={exportStartDate} onChange={(e) => setExportStartDate(e.target.value)}/></div><div><label className="text-xs text-gray-500 block mb-1">結束日期</label><input type="date" className="w-full p-2 border rounded" value={exportEndDate} onChange={(e) => setExportEndDate(e.target.value)}/></div></div></div>
-                        {(exportStartDate || exportEndDate) && (<button onClick={() => { setExportStartDate(''); setExportEndDate(''); }} className="text-xs text-blue-600 hover:underline">清除日期 (匯出全部)</button>)}
-                        <div className="pt-6 border-t"><button onClick={downloadImage} disabled={isCapturing} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-wait">{isCapturing ? (<><Loader className="animate-spin" size={18} />處理中...</>) : (<><Download size={18} />下載圖片</>)}</button></div>
-                    </div>
-                    <div className="flex-1 bg-slate-200 flex items-center justify-center p-8 overflow-hidden relative"><div style={{ width: '480px', height: '360px', position: 'relative', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}><div ref={exportPreviewRef} className="w-full h-full bg-white relative overflow-hidden" />{isCapturing && (<div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-50 flex items-center justify-center"><span className="font-bold text-blue-800">截圖中...</span></div>)}</div><div className="absolute bottom-4 text-xs text-gray-500">預覽已縮小顯示，實際下載為 1200x900 高解析度圖片</div></div>
-                </div>
-            </div>
-        </div>
-      )}
-
       {isIdModalOpen && (
           <div className="fixed inset-0 z-[3000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
@@ -1522,20 +1501,6 @@ export default function TravelMapApp() {
           </div>
         </div>
       )}
-
-      {showInstallPrompt && (
-        <div className="fixed bottom-4 left-4 right-4 z-[5000] bg-white rounded-xl shadow-2xl border border-gray-100 p-4 animate-in slide-in-from-bottom duration-500">
-            <button onClick={() => setShowInstallPrompt(false)} className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"><X size={16} /></button>
-            <div className="flex gap-4">
-                <div className="bg-blue-100 p-3 rounded-lg flex items-center justify-center h-fit">{deferredPrompt ? <Download className="text-blue-600" size={24} /> : <PlusSquare className="text-blue-600" size={24} />}</div>
-                <div className="flex-1">
-                    <h3 className="font-bold text-gray-800 text-sm mb-1">{deferredPrompt ? '安裝應用程式' : '將地圖安裝到手機'}</h3>
-                    {deferredPrompt ? (<div><p className="text-xs text-gray-500 mb-2">安裝後可獲得更佳的全螢幕體驗與離線存取功能。</p><button onClick={handleInstallClick} className="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded hover:bg-blue-700 transition-colors">立即安裝</button></div>) : (<><p className="text-xs text-gray-500 mb-2 leading-relaxed">在 Safari 瀏覽器下方工具列，點擊 <Share className="inline w-3 h-3 mx-1" /> 分享按鈕，然後選擇「加入主畫面」。</p><div className="text-[10px] text-blue-500 bg-blue-50 px-2 py-1 rounded inline-block">💡 這樣就能像 App 一樣全螢幕使用囉！</div></>)}
-                </div>
-            </div>
-        </div>
-      )}
-
     </div>
   );
 }
