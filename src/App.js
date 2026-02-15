@@ -359,6 +359,8 @@ export default function TravelMapApp() {
   const [isStatsOpen, setIsStatsOpen] = useState(true);
   const [isTransportOpen, setIsTransportOpen] = useState(true);
 
+  // Removed PWA install states and effects
+
   const [formData, setFormData] = useState({
     originCountry: '', originCity: '', originLat: null, originLng: null,
     destCountry: '', destCity: '', destLat: null, destLng: null,
@@ -378,8 +380,6 @@ export default function TravelMapApp() {
   const pickingLocationMode = useRef(null);
   const latestDataRef = useRef({ trips: [], allCountries: [] });
   const visitedCountriesRef = useRef(new Set()); 
-
-  // Removed PWA install effects
 
   useEffect(() => {
     latestDataRef.current = { trips, allCountries };
@@ -821,19 +821,34 @@ export default function TravelMapApp() {
     const gapSize = isMobileExport ? '16px' : '8px';
 
     // ★★★ 手機版匯出：國家/城市左右並排 (一列三行) ★★★
+    // 修正：標題、國家、城市 一列三行
     const statsContentHtml = isMobileExport ? `
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-            <div style="display: flex; flex-direction: column; align-items: center;">
-                <span style="font-size: ${fontSizeLabel}; color: #6b7280; margin-bottom: 4px;">已造訪國家</span>
-                <span style="font-weight: bold; font-size: ${fontSizeVal}; color: #2563eb;">${exportStats.countries}</span>
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                 <div style="background-color: #fef9c3; padding: 12px; border-radius: 9999px;">
+                    <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+                </div>
+                <span style="font-weight: bold; color: #374151; font-size: ${fontSizeTitle};">旅程足跡</span>
             </div>
-            <div style="width: 1px; height: 40px; background-color: #e5e7eb;"></div>
-            <div style="display: flex; flex-direction: column; align-items: center;">
-                <span style="font-size: ${fontSizeLabel}; color: #6b7280; margin-bottom: 4px;">已造訪城市</span>
-                <span style="font-weight: bold; font-size: ${fontSizeVal}; color: #4f46e5;">${exportStats.cities}</span>
+            
+            <div style="display: flex; align-items: center; gap: 40px;">
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <span style="font-size: ${fontSizeLabel}; color: #6b7280; margin-bottom: 4px;">國家</span>
+                    <span style="font-weight: bold; font-size: ${fontSizeVal}; color: #2563eb;">${exportStats.countries}</span>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <span style="font-size: ${fontSizeLabel}; color: #6b7280; margin-bottom: 4px;">城市</span>
+                    <span style="font-weight: bold; font-size: ${fontSizeVal}; color: #4f46e5;">${exportStats.cities}</span>
+                </div>
             </div>
         </div>
     ` : `
+        <div style="display: flex; align-items: center; gap: ${gapSize}; margin-bottom: 10px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; justify-content: center;">
+             <div style="background-color: #fef9c3; padding: 6px; border-radius: 9999px;">
+                <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+            </div>
+            <span style="font-weight: bold; color: #374151; font-size: ${fontSizeTitle};">旅程足跡</span>
+        </div>
         <div style="display: flex; flex-direction: column; gap: ${gapSize};">
             <div style="display: flex; align-items: center; justify-content: space-between;">
                 <span style="font-size: ${fontSizeLabel}; color: #6b7280;">已造訪國家</span>
@@ -846,41 +861,7 @@ export default function TravelMapApp() {
         </div>
     `;
 
-    // 只有非手機版匯出時才使用兩段式 (標題+內容)，手機版直接一段式橫排
-    if (isMobileExport) {
-         statsCard.innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="background-color: #fef9c3; padding: 10px; border-radius: 9999px;">
-                        <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
-                    </div>
-                    <span style="font-weight: bold; color: #374151; font-size: ${fontSizeTitle};">旅程足跡</span>
-                </div>
-                
-                <div style="display: flex; align-items: center; gap: 30px;">
-                    <div style="display: flex; flex-direction: column; align-items: center;">
-                         <span style="font-weight: bold; font-size: 32px; color: #2563eb; line-height: 1;">${exportStats.countries}</span>
-                         <span style="font-size: 16px; color: #6b7280;">國家</span>
-                    </div>
-                    <div style="display: flex; flex-direction: column; align-items: center;">
-                         <span style="font-weight: bold; font-size: 32px; color: #4f46e5; line-height: 1;">${exportStats.cities}</span>
-                         <span style="font-size: 16px; color: #6b7280;">城市</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    } else {
-        statsCard.innerHTML = `
-            <div style="display: flex; align-items: center; gap: ${gapSize}; margin-bottom: 10px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; justify-content: center;">
-                <div style="background-color: #fef9c3; padding: 6px; border-radius: 9999px;">
-                    <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
-                </div>
-                <span style="font-weight: bold; color: #374151; font-size: ${fontSizeTitle};">旅程足跡</span>
-            </div>
-            ${statsContentHtml}
-        `;
-    }
-    
+    statsCard.innerHTML = statsContentHtml;
     mapWrapper.appendChild(statsCard);
 
     fetch('https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson')
@@ -940,9 +921,7 @@ export default function TravelMapApp() {
             } else {
                 L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(exportMap);
                 polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
-                layersRef.current.push(p1);
             }
-            bounds.extend([trip.transitLat, trip.transitLng]);
         } else {
             if (trip.transport === 'plane') {
                  const curvedPoints = getGreatCirclePoints(trip.originLat, trip.originLng, trip.destLat, trip.destLng);
@@ -953,12 +932,11 @@ export default function TravelMapApp() {
                 polyline = L.polyline([[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
             }
         }
+        
         if (polyline) polyline.bringToFront();
-        bounds.extend([trip.originLat, trip.originLng]);
-        bounds.extend([trip.destLat, trip.destLng]);
-        hasData = true;
-        L.circleMarker([trip.originLat, trip.originLng], { radius: isMobileExport ? 8 : 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
-        L.circleMarker([trip.destLat, trip.destLng], { radius: isMobileExport ? 8 : 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
+
+        const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
+        const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
       }
     });
 
@@ -1131,7 +1109,7 @@ export default function TravelMapApp() {
         if (trip.transitLat && trip.transitLng) {
             if (trip.transport === 'plane') {
                 const curvedPoints1 = getGreatCirclePoints(trip.originLat, trip.originLng, trip.transitLat, trip.transitLng);
-                L.polyline(curvedPoints1, lineOptions).addTo(map);
+                const p1 = L.polyline(curvedPoints1, lineOptions).addTo(map);
                 const curvedPoints2 = getGreatCirclePoints(trip.transitLat, trip.transitLng, trip.destLat, trip.destLng);
                 polyline = L.polyline(curvedPoints2, lineOptions).addTo(map);
                 layersRef.current.push(p1);
@@ -1152,23 +1130,6 @@ export default function TravelMapApp() {
                 polyline = L.polyline([[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]], lineOptions).addTo(map);
             }
         }
-        
-        if (polyline) polyline.bringToFront();
-
-        const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
-        const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
-        
-        const dateDisplay = trip.dateStart ? `${safeDateDisplay(trip.dateStart)} ${trip.timeStart || ''}` : '';
-        const popupContent = `
-          <div class="font-sans min-w-[200px]">
-            <h3 class="font-bold text-lg mb-1">${trip.originCity} ➝ ${trip.destCity}</h3>
-            ${trip.transitCity ? `<div class="text-xs text-gray-500 mb-1">經由: ${trip.transitCity}</div>` : ''}
-            <div class="text-sm text-gray-700 space-y-1">
-              <p><span style="color:${typeConfig.color}">●</span> ${typeConfig.label} | ${dateDisplay}</p>
-              ${trip.cost ? `<p>費用: ${trip.currency} ${trip.cost}</p>` : ''}
-            </div>
-          </div>
-        `;
         
         if (polyline) polyline.bindPopup(popupContent);
         // Fix for binding popup to previous segment
@@ -1469,6 +1430,23 @@ export default function TravelMapApp() {
               </form>
             </div>
           </div>
+        </div>
+      )}
+
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-[2500] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col h-[90vh] animate-in fade-in zoom-in duration-200">
+                <div className="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-xl"><h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><ImageIcon size={24} className="text-blue-600"/> 匯出地圖預覽</h2><button onClick={() => { setIsExportModalOpen(false); setShowExportPreview(false); }} className="text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-2 rounded-full"><X size={24} /></button></div>
+                <div className="flex-1 flex overflow-hidden">
+                    <div className="w-80 border-r bg-gray-50 p-6 space-y-6 overflow-y-auto">
+                        <div className="bg-blue-100 p-4 rounded-lg text-sm text-blue-800"><p>💡 此為匯出圖片的預覽。請等待地圖圖資完全載入後，再點擊下載按鈕。</p></div>
+                        <div><label className="block text-sm font-bold text-gray-700 mb-2">設定日期區間</label><div className="space-y-2"><div><label className="text-xs text-gray-500 block mb-1">開始日期</label><input type="date" className="w-full p-2 border rounded" value={exportStartDate} onChange={(e) => setExportStartDate(e.target.value)}/></div><div><label className="text-xs text-gray-500 block mb-1">結束日期</label><input type="date" className="w-full p-2 border rounded" value={exportEndDate} onChange={(e) => setExportEndDate(e.target.value)}/></div></div></div>
+                        {(exportStartDate || exportEndDate) && (<button onClick={() => { setExportStartDate(''); setExportEndDate(''); }} className="text-xs text-blue-600 hover:underline">清除日期 (匯出全部)</button>)}
+                        <div className="pt-6 border-t"><button onClick={downloadImage} disabled={isCapturing} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-wait">{isCapturing ? (<><Loader className="animate-spin" size={18} />處理中...</>) : (<><Download size={18} />下載圖片</>)}</button></div>
+                    </div>
+                    <div className="flex-1 bg-slate-200 flex items-center justify-center p-8 overflow-hidden relative"><div style={{ width: '480px', height: '360px', position: 'relative', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}><div ref={exportPreviewRef} className="w-full h-full bg-white relative overflow-hidden" />{isCapturing && (<div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-50 flex items-center justify-center"><span className="font-bold text-blue-800">截圖中...</span></div>)}</div><div className="absolute bottom-4 text-xs text-gray-500">預覽已縮小顯示，實際下載為 1200x900 高解析度圖片</div></div>
+                </div>
+            </div>
         </div>
       )}
 
