@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy, List, Share, PlusSquare } from 'lucide-react';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy, List, Share, PlusSquare, ChevronUp, ChevronDown } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 與 html2canvas，以相容預覽環境與本機環境
 
@@ -354,6 +354,10 @@ export default function TravelMapApp() {
   const [stats, setStats] = useState({ countries: 0, cities: 0 });
   const [detailedStats, setDetailedStats] = useState({ countryList: [], cityList: [] }); 
   const [isStatsListOpen, setIsStatsListOpen] = useState(false); 
+  
+  // ★★★ 新增：卡片折疊狀態 (預設開啟) ★★★
+  const [isStatsOpen, setIsStatsOpen] = useState(true);
+  const [isTransportOpen, setIsTransportOpen] = useState(true);
 
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null); 
@@ -716,6 +720,9 @@ export default function TravelMapApp() {
     const isMobileExport = window.innerWidth < 768;
     const exportWidth = isMobileExport ? 1080 : 1200;
     const exportHeight = isMobileExport ? 1920 : 900;
+    
+    // ★★★ 取得當前網址 ★★★
+    const appUrl = window.location.host;
 
     const container = document.createElement('div');
     container.style.width = `${exportWidth}px`;
@@ -730,16 +737,15 @@ export default function TravelMapApp() {
     container.style.transformOrigin = 'top left';
     exportPreviewRef.current.appendChild(container);
 
-    // ★ 標頭 (9:16 時置中且加大一點字體)
+    // ★ 標頭 (9:16 時左右分開對齊)
     const header = document.createElement('div');
     header.style.padding = isMobileExport ? '40px' : '20px';
     header.style.backgroundColor = '#1e3a8a';
     header.style.color = 'white';
     header.style.display = 'flex';
-    header.style.flexDirection = isMobileExport ? 'column' : 'row';
+    header.style.flexDirection = 'row'; // 始終維持 row
     header.style.justifyContent = 'space-between';
-    header.style.alignItems = isMobileExport ? 'center' : 'center';
-    header.style.textAlign = isMobileExport ? 'center' : 'left';
+    header.style.alignItems = isMobileExport ? 'flex-start' : 'center'; // 手機版靠上對齊
     header.style.gap = isMobileExport ? '20px' : '0';
     
     let dateRangeText = "全部時段";
@@ -749,18 +755,18 @@ export default function TravelMapApp() {
 
     // 標題 HTML
     const titleSize = isMobileExport ? '48px' : '28px';
-    const subTitleSize = isMobileExport ? '24px' : '16px';
+    const subTitleSize = isMobileExport ? '28px' : '16px';
     const rangeLabelSize = isMobileExport ? '28px' : '18px';
     const rangeTextSize = isMobileExport ? '24px' : '18px';
 
     header.innerHTML = `
-        <div>
+        <div style="display: flex; flex-direction: column; align-items: flex-start;">
             <h1 style="margin:0; font-size: ${titleSize}; font-weight: bold;">🗺️歐洲交換趴趴走</h1>
-            <p style="margin:5px 0 0 0; opacity: 0.8; font-size: ${subTitleSize};">地圖 ID: ${currentMapId}</p>
+            <p style="margin:8px 0 0 0; opacity: 0.8; font-size: ${subTitleSize};">${appUrl}</p>
         </div>
-        <div style="text-align: ${isMobileExport ? 'center' : 'right'};">
-            <p style="margin:0; font-size: ${rangeLabelSize}; font-weight: bold;">旅程日期範圍</p>
-            <p style="margin:5px 0 0 0; font-family: monospace; font-size: ${rangeTextSize};">${dateRangeText}</p>
+        <div style="display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; height: 100%; margin-top: auto;">
+            <p style="margin:0; font-size: ${rangeLabelSize}; font-weight: bold;">日期區間</p>
+            <p style="margin:8px 0 0 0; font-family: monospace; font-size: ${rangeTextSize}; text-align: right;">${dateRangeText}</p>
         </div>
     `;
     container.appendChild(header);
@@ -823,7 +829,7 @@ export default function TravelMapApp() {
         statsCard.style.transform = 'translateX(-50%)';
         statsCard.style.padding = '30px';
         statsCard.style.borderRadius = '24px';
-        statsCard.style.minWidth = '400px';
+        statsCard.style.minWidth = '600px'; // 加寬
     } else {
         statsCard.style.top = '20px';
         statsCard.style.right = '20px';
@@ -845,13 +851,20 @@ export default function TravelMapApp() {
     const fontSizeVal = isMobileExport ? '36px' : '18px';
     const gapSize = isMobileExport ? '16px' : '8px';
 
-    statsCard.innerHTML = `
-        <div style="display: flex; align-items: center; gap: ${gapSize}; margin-bottom: ${isMobileExport ? '20px' : '10px'}; border-bottom: 1px solid #e5e7eb; padding-bottom: ${isMobileExport ? '16px' : '8px'};">
-            <div style="background-color: #fef9c3; padding: ${isMobileExport ? '12px' : '6px'}; border-radius: 9999px;">
-                <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+    // ★★★ 手機版匯出：國家/城市左右並排 ★★★
+    const statsContentHtml = isMobileExport ? `
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <span style="font-size: ${fontSizeLabel}; color: #6b7280; margin-bottom: 4px;">已造訪國家</span>
+                <span style="font-weight: bold; font-size: ${fontSizeVal}; color: #2563eb;">${exportStats.countries}</span>
             </div>
-            <span style="font-weight: bold; color: #374151; font-size: ${fontSizeTitle};">旅程足跡</span>
+            <div style="width: 1px; height: 40px; background-color: #e5e7eb;"></div>
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <span style="font-size: ${fontSizeLabel}; color: #6b7280; margin-bottom: 4px;">已造訪城市</span>
+                <span style="font-weight: bold; font-size: ${fontSizeVal}; color: #4f46e5;">${exportStats.cities}</span>
+            </div>
         </div>
+    ` : `
         <div style="display: flex; flex-direction: column; gap: ${gapSize};">
             <div style="display: flex; align-items: center; justify-content: space-between;">
                 <span style="font-size: ${fontSizeLabel}; color: #6b7280;">已造訪國家</span>
@@ -862,6 +875,16 @@ export default function TravelMapApp() {
                 <span style="font-weight: bold; font-size: ${fontSizeVal}; color: #4f46e5;">${exportStats.cities}</span>
             </div>
         </div>
+    `;
+
+    statsCard.innerHTML = `
+        <div style="display: flex; align-items: center; gap: ${gapSize}; margin-bottom: ${isMobileExport ? '20px' : '10px'}; border-bottom: 1px solid #e5e7eb; padding-bottom: ${isMobileExport ? '16px' : '8px'}; justify-content: center;">
+            <div style="background-color: #fef9c3; padding: ${isMobileExport ? '12px' : '6px'}; border-radius: 9999px;">
+                <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+            </div>
+            <span style="font-weight: bold; color: #374151; font-size: ${fontSizeTitle};">旅程足跡</span>
+        </div>
+        ${statsContentHtml}
     `;
     mapWrapper.appendChild(statsCard);
 
@@ -922,6 +945,7 @@ export default function TravelMapApp() {
             } else {
                 L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(exportMap);
                 polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
+                layersRef.current.push(p1);
             }
             bounds.extend([trip.transitLat, trip.transitLng]);
         } else {
@@ -1112,29 +1136,26 @@ export default function TravelMapApp() {
         if (trip.transitLat && trip.transitLng) {
             if (trip.transport === 'plane') {
                 const curvedPoints1 = getGreatCirclePoints(trip.originLat, trip.originLng, trip.transitLat, trip.transitLng);
-                const p1 = L.polyline(curvedPoints1, lineOptions).addTo(map);
+                L.polyline(curvedPoints1, lineOptions).addTo(exportMap);
                 const curvedPoints2 = getGreatCirclePoints(trip.transitLat, trip.transitLng, trip.destLat, trip.destLng);
-                polyline = L.polyline(curvedPoints2, lineOptions).addTo(map);
-                layersRef.current.push(p1);
+                polyline = L.polyline(curvedPoints2, lineOptions).addTo(exportMap);
             } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
-                polyline = L.polyline(trip.routePath, lineOptions).addTo(map);
+                polyline = L.polyline(trip.routePath, lineOptions).addTo(exportMap);
             } else {
-                const p1 = L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(map);
-                polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(map);
+                L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(exportMap);
+                polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
                 layersRef.current.push(p1);
             }
         } else {
             if (trip.transport === 'plane') {
                  const curvedPoints = getGreatCirclePoints(trip.originLat, trip.originLng, trip.destLat, trip.destLng);
-                 polyline = L.polyline(curvedPoints, lineOptions).addTo(map);
+                 polyline = L.polyline(curvedPoints, lineOptions).addTo(exportMap);
             } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
-                polyline = L.polyline(trip.routePath, lineOptions).addTo(map);
+                polyline = L.polyline(trip.routePath, lineOptions).addTo(exportMap);
             } else {
-                const straightLatLngs = [[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]];
-                polyline = L.polyline(straightLatLngs, lineOptions).addTo(map);
+                polyline = L.polyline([[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
             }
         }
-
         if (polyline) polyline.bringToFront();
         const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
         const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
@@ -1322,7 +1343,8 @@ export default function TravelMapApp() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full bg-gray-100 font-sans text-gray-800 safe-area-inset-bottom">
+    <div className="flex flex-col fixed inset-0 w-full bg-gray-100 font-sans text-gray-800 safe-area-inset-bottom overflow-hidden">
+      
       <header className="bg-blue-900 text-white p-4 shadow-md flex items-center justify-between z-20 pt-[env(safe-area-inset-top,20px)]">
         <div className="flex items-center gap-2"><Map className="w-6 h-6" /><div><h1 className="text-xl font-bold tracking-wide">🗺️歐洲交換趴趴走</h1>{currentMapId && (<div className="flex items-center gap-1 mt-1"><div className="font-mono bg-blue-800 px-1.5 rounded inline-block text-xs opacity-90">ID: {currentMapId}</div><button onClick={handleShare} className="hover:text-yellow-300" title="複製連結"><Share2 size={12}/></button></div>)}</div></div>
         <div className="flex items-center gap-3">
@@ -1363,19 +1385,55 @@ export default function TravelMapApp() {
         <div className="w-full h-full z-0 bg-slate-200 relative flex flex-col">
           <div ref={mapContainerRef} className="flex-1 relative" />
           
-          <div className="absolute top-4 right-4 z-[400] flex flex-col items-end pointer-events-none pt-[env(safe-area-inset-top,0px)]">
-            <div className={`pointer-events-auto bg-white/95 backdrop-blur p-4 rounded-xl shadow-2xl border border-white/50 transform transition-all duration-300 origin-top-right scale-100 opacity-100 translate-y-0`}>
-                <div className="flex items-center justify-between gap-4 mb-3 pb-2 border-b border-gray-100"><div className="flex items-center gap-2"><div className="bg-yellow-100 p-1.5 rounded-full"><Trophy size={14} className="text-yellow-600" /></div><span className="font-bold text-gray-700 text-sm">旅程足跡</span></div><button onClick={() => setIsStatsListOpen(true)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded transition-colors flex items-center gap-1"><List size={12} /> 清單</button></div>
-                <div className="space-y-3 min-w-[140px]"><div className="flex items-center justify-between"><span className="text-xs text-gray-500">已造訪國家</span><span className="font-bold text-lg text-blue-600">{stats.countries}</span></div><div className="flex items-center justify-between"><span className="text-xs text-gray-500">已造訪城市</span><span className="font-bold text-lg text-indigo-600">{stats.cities}</span></div></div>
+          {/* 旅程足跡卡片 (置中靠右，可折疊) */}
+          <div className="absolute top-2 right-2 z-[400] flex flex-col items-end pointer-events-none pt-[env(safe-area-inset-top,0px)]">
+            <div className="pointer-events-auto bg-white/95 backdrop-blur p-3 rounded-xl shadow-2xl border border-white/50 w-[180px] transition-all">
+                <div className="flex items-center justify-between gap-2 pb-2 border-b border-gray-100 mb-2 cursor-pointer" onClick={() => setIsStatsOpen(!isStatsOpen)}>
+                    <div className="flex items-center gap-2">
+                        <div className="bg-yellow-100 p-1 rounded-full"><Trophy size={14} className="text-yellow-600" /></div>
+                        <span className="font-bold text-gray-700 text-sm">旅程足跡</span>
+                    </div>
+                    <button className="text-gray-400">{isStatsOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}</button>
+                </div>
+                
+                {isStatsOpen && (
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between"><span className="text-xs text-gray-500">已造訪國家</span><span className="font-bold text-lg text-blue-600">{stats.countries}</span></div>
+                        <div className="flex items-center justify-between"><span className="text-xs text-gray-500">已造訪城市</span><span className="font-bold text-lg text-indigo-600">{stats.cities}</span></div>
+                        <button onClick={() => setIsStatsListOpen(true)} className="w-full mt-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 py-1.5 rounded transition-colors flex items-center justify-center gap-1"><List size={12} /> 查看清單</button>
+                    </div>
+                )}
             </div>
           </div>
 
-          <div className="absolute bottom-6 right-6 z-[400] bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-xl border border-gray-200 mb-[env(safe-area-inset-bottom,0px)]"><h4 className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider border-b pb-1">交通方式</h4><div className="space-y-2"><div className="grid grid-cols-5 gap-2">{Object.entries(TRANSPORT_TYPES).map(([key, type]) => (<div key={key} className="flex flex-col items-center gap-1"><div className="w-full h-1 rounded-full" style={{ backgroundColor: type.color }}></div><span className="text-[10px] font-bold text-gray-600 text-center leading-tight">{type.label}</span></div>))}</div></div><div className="mt-2 pt-2 border-t text-[10px] text-gray-400 text-center">虛線代表未定/未來行程</div></div>
+          {/* 交通方式卡片 (置底靠右，可折疊，在廣告上方) */}
+          <div className="absolute bottom-[110px] right-2 z-[400] pointer-events-none">
+             <div className="pointer-events-auto bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-xl border border-gray-200 w-[240px]">
+                 <div className="flex items-center justify-between cursor-pointer mb-2 pb-1 border-b border-gray-100" onClick={() => setIsTransportOpen(!isTransportOpen)}>
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">交通方式</h4>
+                    <button className="text-gray-400">{isTransportOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}</button>
+                 </div>
+                 
+                 {isTransportOpen && (
+                     <>
+                         <div className="grid grid-cols-5 gap-2">
+                            {Object.entries(TRANSPORT_TYPES).map(([key, type]) => (
+                                <div key={key} className="flex flex-col items-center gap-1">
+                                    <div className="w-full h-1 rounded-full" style={{ backgroundColor: type.color }}></div>
+                                    <span className="text-[10px] font-bold text-gray-600 text-center leading-tight">{type.label}</span>
+                                </div>
+                            ))}
+                         </div>
+                         <div className="mt-2 pt-2 border-t text-[10px] text-gray-400 text-center">虛線代表未定/未來行程</div>
+                     </>
+                 )}
+             </div>
+          </div>
         </div>
       </div>
       
       {/* 廣告區塊 */}
-      <div className="w-full bg-gray-100 border-t border-gray-200 shrink-0 z-20 flex justify-center items-center p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
+      <div className="absolute bottom-0 w-full bg-gray-100 border-t border-gray-200 shrink-0 z-20 flex justify-center items-center p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
         <div className="w-full max-w-[728px] h-[90px] bg-white border-2 border-dashed border-gray-300 rounded-lg flex flex-col justify-center items-center text-gray-400">
             <span className="font-bold">Google AdSense</span>
             <span className="text-xs">(此處為廣告預留位置)</span>
