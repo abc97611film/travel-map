@@ -1099,6 +1099,15 @@ export default function TravelMapApp() {
             </div>
           </div>
 
+          {/* 手機版新增旅程按鈕 (左下角) */}
+          <button 
+            onClick={() => openModal('')} 
+            className="absolute bottom-[70px] left-4 z-[400] md:hidden bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-transform active:scale-95 flex items-center justify-center"
+            title="新增旅程"
+          >
+            <Plus size={24} />
+          </button>
+
           {/* 交通方式卡片 (置底靠右，可折疊，在廣告上方) */}
           <div className="absolute bottom-[70px] md:bottom-[110px] right-2 z-[400] pointer-events-none">
              <div className="pointer-events-auto bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-xl border border-gray-200 w-[240px]">
