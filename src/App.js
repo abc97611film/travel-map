@@ -756,12 +756,13 @@ export default function TravelMapApp() {
     }
 
     // ★★★ 取得當前網址，用於標頭顯示 ★★★
-    const appUrl = window.location.href.split('?')[0] + '?map=' + currentMapId;
+    // 修改：直接使用固定的網址字串 travel-map-delta.vercel.app 並帶上 mapId
+    const appUrl = `travel-map-delta.vercel.app?map=${currentMapId}`;
 
     header.innerHTML = `
         <div>
             <h1 style="margin:0; font-size: ${isPortrait ? '36px' : '28px'}; font-weight: bold;">🗺️歐洲交換趴趴走</h1>
-            <p style="margin:5px 0 0 0; opacity: 0.9; font-size: ${isPortrait ? '20px' : '16px'}; font-family: monospace;">連結: ${appUrl}</p>
+            <p style="margin:5px 0 0 0; opacity: 0.9; font-size: ${isPortrait ? '20px' : '16px'}; font-family: monospace;">${appUrl}</p>
         </div>
         <div style="text-align: right;">
             <p style="margin:0; font-size: ${isPortrait ? '24px' : '18px'}; font-weight: bold;">旅程日期範圍</p>
@@ -1819,7 +1820,8 @@ export default function TravelMapApp() {
             </div>
           </div>
 
-          <div className="absolute bottom-6 right-6 z-[400] bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-xl border border-gray-200 hidden md:block">
+          {/* ★★★ 修正：移除 hidden md:block，讓手機版也能顯示交通圖例 ★★★ */}
+          <div className="absolute bottom-6 right-6 z-[400] bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-xl border border-gray-200">
              <h4 className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider border-b pb-1">交通方式</h4>
              <div className="space-y-2">
                  <div className="grid grid-cols-5 gap-2">
