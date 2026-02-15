@@ -756,7 +756,7 @@ export default function TravelMapApp() {
     }
 
     // ★★★ 取得當前網址，用於標頭顯示 ★★★
-    // 修改：直接使用固定的網址字串 travel-map-delta.vercel.app 並帶上 mapId
+    // 修改：直接使用固定的網址字串 travel-map-delta.vercel.app 並帶上 mapId，移除「連結:」字樣
     const appUrl = `travel-map-delta.vercel.app?map=${currentMapId}`;
 
     header.innerHTML = `
@@ -982,7 +982,9 @@ export default function TravelMapApp() {
     });
 
     if (hasData && bounds.isValid()) {
-        const padding = isPortrait ? [100, 100] : [50, 50];
+        // ★★★ 修正：減少 padding 以「放大一點」並完整涵蓋範圍 ★★★
+        // 先前為 [100, 100]，現在改小一點讓畫面更滿
+        const padding = isPortrait ? [20, 20] : [50, 50]; 
         exportMap.fitBounds(bounds, { padding: padding });
     } else {
         exportMap.setView([48, 15], 4);
@@ -1820,7 +1822,7 @@ export default function TravelMapApp() {
             </div>
           </div>
 
-          {/* ★★★ 修正：移除 hidden md:block，讓手機版也能顯示交通圖例 ★★★ */}
+          {/* ★★★ 修正：確保手機版也能顯示交通圖例，並調高 z-index ★★★ */}
           <div className="absolute bottom-6 right-6 z-[400] bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-xl border border-gray-200">
              <h4 className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider border-b pb-1">交通方式</h4>
              <div className="space-y-2">
