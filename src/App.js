@@ -945,7 +945,6 @@ export default function TravelMapApp() {
             } else {
                 L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(exportMap);
                 polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
-                layersRef.current.push(p1);
             }
             bounds.extend([trip.transitLat, trip.transitLng]);
         } else {
@@ -1136,27 +1135,30 @@ export default function TravelMapApp() {
         if (trip.transitLat && trip.transitLng) {
             if (trip.transport === 'plane') {
                 const curvedPoints1 = getGreatCirclePoints(trip.originLat, trip.originLng, trip.transitLat, trip.transitLng);
-                L.polyline(curvedPoints1, lineOptions).addTo(exportMap);
+                const p1 = L.polyline(curvedPoints1, lineOptions).addTo(map);
                 const curvedPoints2 = getGreatCirclePoints(trip.transitLat, trip.transitLng, trip.destLat, trip.destLng);
-                polyline = L.polyline(curvedPoints2, lineOptions).addTo(exportMap);
+                polyline = L.polyline(curvedPoints2, lineOptions).addTo(map);
+                layersRef.current.push(p1);
             } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
-                polyline = L.polyline(trip.routePath, lineOptions).addTo(exportMap);
+                polyline = L.polyline(trip.routePath, lineOptions).addTo(map);
             } else {
-                L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(exportMap);
-                polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
+                const p1 = L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(map);
+                polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(map);
                 layersRef.current.push(p1);
             }
         } else {
             if (trip.transport === 'plane') {
                  const curvedPoints = getGreatCirclePoints(trip.originLat, trip.originLng, trip.destLat, trip.destLng);
-                 polyline = L.polyline(curvedPoints, lineOptions).addTo(exportMap);
+                 polyline = L.polyline(curvedPoints, lineOptions).addTo(map);
             } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
-                polyline = L.polyline(trip.routePath, lineOptions).addTo(exportMap);
+                polyline = L.polyline(trip.routePath, lineOptions).addTo(map);
             } else {
-                polyline = L.polyline([[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
+                polyline = L.polyline([[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]], lineOptions).addTo(map);
             }
         }
+        
         if (polyline) polyline.bringToFront();
+
         const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
         const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
         
@@ -1173,9 +1175,12 @@ export default function TravelMapApp() {
         `;
         
         if (polyline) polyline.bindPopup(popupContent);
-        if (layersRef.current.length > 0 && layersRef.current[layersRef.current.length - 1].bindPopup) {
-             layersRef.current[layersRef.current.length - 1].bindPopup(popupContent);
+        // Fix for binding popup to previous segment
+        const lastLayer = layersRef.current[layersRef.current.length - 1]; 
+        if (lastLayer && lastLayer.bindPopup) {
+             lastLayer.bindPopup(popupContent);
         }
+
         layersRef.current.push(polyline, originMarker, destMarker);
       }
     });
