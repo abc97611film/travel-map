@@ -1131,23 +1131,6 @@ export default function TravelMapApp() {
             }
         }
         
-        if (polyline) polyline.bringToFront();
-
-        const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
-        const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
-        
-        const dateDisplay = trip.dateStart ? `${safeDateDisplay(trip.dateStart)} ${trip.timeStart || ''}` : '';
-        const popupContent = `
-          <div class="font-sans min-w-[200px]">
-            <h3 class="font-bold text-lg mb-1">${trip.originCity} ➝ ${trip.destCity}</h3>
-            ${trip.transitCity ? `<div class="text-xs text-gray-500 mb-1">經由: ${trip.transitCity}</div>` : ''}
-            <div class="text-sm text-gray-700 space-y-1">
-              <p><span style="color:${typeConfig.color}">●</span> ${typeConfig.label} | ${dateDisplay}</p>
-              ${trip.cost ? `<p>費用: ${trip.currency} ${trip.cost}</p>` : ''}
-            </div>
-          </div>
-        `;
-        
         if (polyline) polyline.bindPopup(popupContent);
         // Fix for binding popup to previous segment
         const lastLayer = layersRef.current[layersRef.current.length - 1]; 
