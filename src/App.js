@@ -321,9 +321,11 @@ export default function TravelMapApp() {
   const [originCities, setOriginCities] = useState([]);
   const [destCities, setDestCities] = useState([]);
   const [transitCities, setTransitCities] = useState([]); 
-  const [isLoadingOriginCities, setIsLoadingOriginCities] = useState(false);
-  const [isLoadingDestCities, setIsLoadingDestCities] = useState(false);
-  const [isLoadingTransitCities, setIsLoadingTransitCities] = useState(false); 
+  
+  // Removed unused setters
+  const [isLoadingOriginCities] = useState(false);
+  const [isLoadingDestCities] = useState(false);
+  const [isLoadingTransitCities] = useState(false);
   
   const [isOriginManual, setIsOriginManual] = useState(false);
   const [isDestManual, setIsDestManual] = useState(false);
@@ -372,7 +374,6 @@ export default function TravelMapApp() {
   const mapInstanceRef = useRef(null);
   const geoJsonLayerRef = useRef(null);
   const layersRef = useRef([]); 
-  const pickerMarkerRef = useRef(null);
   const pickingLocationMode = useRef(null);
   const latestDataRef = useRef({ trips: [], allCountries: [] });
   const visitedCountriesRef = useRef(new Set()); 
@@ -1528,6 +1529,42 @@ export default function TravelMapApp() {
             <p className="text-sm text-gray-500 mb-6">刪除後將無法復原，您確定要繼續嗎？</p>
             <div className="flex gap-3 justify-center"><button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors">取消</button><button onClick={confirmDelete} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow transition-colors">確認刪除</button></div>
           </div>
+        </div>
+      )}
+
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-[3000] bg-slate-900/95 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300">
+            <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                <h2 className="font-bold text-gray-800 flex items-center gap-2">
+                <Download size={20} className="text-blue-600"/> 匯出地圖圖片
+                </h2>
+                <button onClick={() => { setIsExportModalOpen(false); setShowExportPreview(false); }} className="p-2 hover:bg-gray-200 rounded-full">
+                <X size={24} className="text-gray-500" />
+                </button>
+            </div>
+            
+            <div className="p-4 bg-blue-50 flex flex-wrap gap-4 items-end border-b">
+                <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">開始日期</label>
+                    <input type="date" className="p-2 border rounded" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} />
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">結束日期</label>
+                    <input type="date" className="p-2 border rounded" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} />
+                </div>
+                <button onClick={downloadImage} disabled={isCapturing} className="ml-auto px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded shadow flex items-center gap-2">
+                    {isCapturing ? <Loader className="animate-spin"/> : <Download size={18}/>}
+                    下載圖片 (.PNG)
+                </button>
+            </div>
+
+            <div className="flex-1 overflow-auto bg-gray-100 p-4 flex justify-center items-center relative">
+                <div className="shadow-2xl border-4 border-white rounded-lg overflow-hidden relative" style={{ minWidth: '300px', minHeight: '500px' }}>
+                    <div ref={exportPreviewRef}></div> 
+                </div>
+            </div>
+            </div>
         </div>
       )}
     </div>
