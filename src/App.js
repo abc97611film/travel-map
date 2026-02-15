@@ -939,7 +939,6 @@ export default function TravelMapApp() {
         
         if (polyline) polyline.bringToFront();
 
-        // Fixed: removed assignment to unused variables originMarker and destMarker
         L.circleMarker([trip.originLat, trip.originLng], { radius: isMobileExport ? 8 : 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
         L.circleMarker([trip.destLat, trip.destLng], { radius: isMobileExport ? 8 : 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
       }
