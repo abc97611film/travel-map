@@ -46,29 +46,24 @@ const safeDateDisplay = (date) => {
 const fetchCoordinates = async (city, country) => {
     // 特別處理 Merzouga (梅爾祖卡) 的座標
     if (city.includes("Merzouga") || city.includes("梅爾祖卡")) {
-       // 31°04'48.2"N 4°00'42.7"W => 31.080056, -4.011861
        return { lat: 31.080056, lng: -4.011861 };
     }
     
     // 特別處理 Fes (費茲) 的座標
     if (city.includes("Fes") || city.includes("費茲")) {
-          // 34.033333, -5.000000
           return { lat: 34.033333, lng: -5.000000 };
     }
 
     // 特別處理 馬爾他騎士團 (Sovereign Military Order of Malta) 的座標
     if (city.includes("Magistral Palace") || city.includes("馬爾他宮")) {
-        // 41°54′19″N 12°28′50″E => 41.905278, 12.480556
         return { lat: 41.905278, lng: 12.480556 };
     }
     if (city.includes("Magistral Villa") || city.includes("馬爾他部")) {
-        // 41°52'58.6"N 12°28'41.5"E => 41.882944, 12.478194
         return { lat: 41.882944, lng: 12.478194 };
     }
 
     // 特別處理 蒙地卡羅 (Monte Carlo) 的座標
     if (city.includes("Monte Carlo") || city.includes("蒙地卡羅")) {
-        // 43°44'15.4"N 7°25'13.3"E => 43.737611, 7.420361
         return { lat: 43.737611, lng: 7.420361 };
     }
 
@@ -368,12 +363,8 @@ export default function TravelMapApp() {
   const [showExportPreview, setShowExportPreview] = useState(false); 
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
-  const [isCapturing, setIsCapturing] = useState(false); 
-  // 新增：匯出格式狀態 (landscape: 4:3, portrait: 9:16)
-  const [exportFormat, setExportFormat] = useState(() => {
-      // 預設根據螢幕寬度決定
-      return typeof window !== 'undefined' && window.innerWidth < 768 ? 'portrait' : 'landscape';
-  });
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [exportFormat, setExportFormat] = useState('landscape'); // 'landscape' | 'portrait'
 
   // 統計數據
   const [stats, setStats] = useState({ countries: 0, cities: 0 });
@@ -492,6 +483,17 @@ export default function TravelMapApp() {
           }
       });
   }, []);
+
+  // ★★★ 自動偵測匯出格式 (手機預設 9:16) ★★★
+  useEffect(() => {
+      if (isExportModalOpen) {
+          if (window.innerWidth < window.innerHeight) {
+              setExportFormat('portrait');
+          } else {
+              setExportFormat('landscape');
+          }
+      }
+  }, [isExportModalOpen]);
 
   // ★★★ 處理 ID 與密碼提交 ★★★
   const handleIdSubmit = useCallback(async (e) => {
@@ -708,28 +710,34 @@ export default function TravelMapApp() {
     // 清除舊的內容
     exportPreviewRef.current.innerHTML = '';
     
+    // ★★★ 設定容器尺寸 (支援 9:16 手機版) ★★★
     const isPortrait = exportFormat === 'portrait';
-    const containerWidth = isPortrait ? '900px' : '1200px';
-    const containerHeight = isPortrait ? '1600px' : '900px';
+    const width = isPortrait ? 1080 : 1200;
+    const height = isPortrait ? 1920 : 900;
 
-    // 建立容器
     const container = document.createElement('div');
-    container.style.width = containerWidth;
-    container.style.height = containerHeight;
+    container.style.width = `${width}px`;
+    container.style.height = `${height}px`;
     container.style.backgroundColor = '#f1f5f9';
     container.style.display = 'flex';
     container.style.flexDirection = 'column';
     container.style.fontFamily = 'sans-serif';
     container.style.position = 'absolute'; // 讓它在預覽框內絕對定位
     
-    // 使用 scale 讓這個大容器塞進預覽視窗
-    // Portrait 和 Landscape 的 scale 邏輯可能不同，但這裡由外部 CSS 或父層控制縮放較佳
-    // 這裡只設定 origin
-    container.style.transformOrigin = 'top left';
+    // ★★★ 計算縮放比例以適應預覽視窗 ★★★
+    // 預覽視窗大小固定，我們需要計算 scale 讓這個大圖能塞進去
+    const previewBoxWidth = 480; // 預覽視窗寬度
+    const previewBoxHeight = 480; // 預覽視窗高度 (稍微加大以適應手機長圖)
     
-    // 簡單的自動縮放邏輯，以便在預覽框中看見全貌
-    const scaleFactor = isPortrait ? 0.28 : 0.4;
-    container.style.transform = `scale(${scaleFactor})`;
+    // 計算適合的縮放比例 (cover / contain logic)
+    const scaleX = previewBoxWidth / width;
+    const scaleY = previewBoxHeight / height;
+    const scale = Math.min(scaleX, scaleY) * 0.9; // 留一點邊距
+
+    container.style.transform = `scale(${scale})`; 
+    container.style.transformOrigin = 'top left';
+    container.style.left = '50%';
+    container.style.marginLeft = `-${(width * scale) / 2}px`; // 置中
 
     exportPreviewRef.current.appendChild(container);
 
@@ -747,22 +755,17 @@ export default function TravelMapApp() {
         dateRangeText = `${exportStartDate} 至 ${exportEndDate}`;
     }
 
-    // ★★★ 標題下方的文字邏輯 ★★★
-    // 橫向 (Landscape): 顯示地圖 ID
-    // 直向 (Portrait): 顯示完整網址 (URL)
-    const subText = isPortrait ? window.location.href : `地圖 ID: ${currentMapId}`;
-    const subTextStyle = isPortrait 
-        ? "margin:5px 0 0 0; opacity: 0.9; font-size: 14px; word-break: break-all; max-width: 500px; font-family: monospace;" 
-        : "margin:5px 0 0 0; opacity: 0.8; font-size: 16px;";
+    // ★★★ 取得當前網址，用於標頭顯示 ★★★
+    const appUrl = window.location.href.split('?')[0] + '?map=' + currentMapId;
 
     header.innerHTML = `
-        <div style="flex: 1;">
-            <h1 style="margin:0; font-size: 28px; font-weight: bold;">🗺️歐洲交換趴趴走</h1>
-            <p style="${subTextStyle}">${subText}</p>
+        <div>
+            <h1 style="margin:0; font-size: ${isPortrait ? '36px' : '28px'}; font-weight: bold;">🗺️歐洲交換趴趴走</h1>
+            <p style="margin:5px 0 0 0; opacity: 0.9; font-size: ${isPortrait ? '20px' : '16px'}; font-family: monospace;">連結: ${appUrl}</p>
         </div>
-        <div style="text-align: right; margin-left: 20px;">
-            <p style="margin:0; font-size: 18px; font-weight: bold;">旅程日期範圍</p>
-            <p style="margin:5px 0 0 0; font-family: monospace; font-size: 18px;">${dateRangeText}</p>
+        <div style="text-align: right;">
+            <p style="margin:0; font-size: ${isPortrait ? '24px' : '18px'}; font-weight: bold;">旅程日期範圍</p>
+            <p style="margin:5px 0 0 0; font-family: monospace; font-size: ${isPortrait ? '24px' : '18px'};">${dateRangeText}</p>
         </div>
     `;
     container.appendChild(header);
@@ -820,9 +823,16 @@ export default function TravelMapApp() {
     // ★★★ 建立匯出圖上的統計卡片 (手動 DOM) ★★★
     const statsCard = document.createElement('div');
     statsCard.style.position = 'absolute';
-    // 直向版面時，統計卡片位置稍微調整
-    statsCard.style.top = '20px';
-    statsCard.style.right = '20px';
+    // 根據版面調整位置
+    if (isPortrait) {
+        statsCard.style.top = '30px';
+        statsCard.style.right = '30px';
+        statsCard.style.transform = 'scale(1.5)'; // 手機版放大卡片
+        statsCard.style.transformOrigin = 'top right';
+    } else {
+        statsCard.style.top = '20px';
+        statsCard.style.right = '20px';
+    }
     statsCard.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
     statsCard.style.padding = '15px';
     statsCard.style.borderRadius = '12px';
@@ -924,7 +934,7 @@ export default function TravelMapApp() {
         const isFutureOrNoDate = !trip.dateStart || trip.dateStart > today;
         const lineOptions = { 
             color: typeConfig.color, 
-            weight: 4, 
+            weight: isPortrait ? 6 : 4, // 手機版線條加粗
             opacity: 0.8,
             dashArray: isFutureOrNoDate ? '10, 10' : null 
         };
@@ -964,36 +974,34 @@ export default function TravelMapApp() {
         bounds.extend([trip.destLat, trip.destLng]);
         hasData = true;
 
-        L.circleMarker([trip.originLat, trip.originLng], { radius: 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
-        L.circleMarker([trip.destLat, trip.destLng], { radius: 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
+        const radius = isPortrait ? 8 : 5; // 手機版點加粗
+        L.circleMarker([trip.originLat, trip.originLng], { radius: radius, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
+        L.circleMarker([trip.destLat, trip.destLng], { radius: radius, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
       }
     });
 
     if (hasData && bounds.isValid()) {
-        // ★★★ 修正：增加 padding 讓點與線不要貼死邊緣 (原本是 [10, 10]，改為 [50, 50]) ★★★
-        exportMap.fitBounds(bounds, { padding: [50, 50] });
+        const padding = isPortrait ? [100, 100] : [50, 50];
+        exportMap.fitBounds(bounds, { padding: padding });
     } else {
         exportMap.setView([48, 15], 4);
     }
 
     const legend = document.createElement('div');
-    legend.style.padding = '15px 20px';
+    legend.style.padding = isPortrait ? '25px 30px' : '15px 20px';
     legend.style.backgroundColor = 'white';
     legend.style.borderTop = '1px solid #e2e8f0';
     legend.style.display = 'flex';
-    legend.style.gap = '20px';
+    legend.style.gap = isPortrait ? '30px' : '20px';
     legend.style.justifyContent = 'center';
-    // 若為直向，讓 Legend 換行避免過寬
-    if (isPortrait) {
-        legend.style.flexWrap = 'wrap';
-    }
+    legend.style.flexWrap = 'wrap';
     
     let legendHtml = '';
     Object.entries(TRANSPORT_TYPES).forEach(([key, type]) => {
         legendHtml += `
             <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 24px; height: 6px; background-color: ${type.color}; border-radius: 4px;"></div>
-                <span style="font-size: 14px; color: #334155; font-weight: bold;">${type.label}</span>
+                <div style="width: ${isPortrait ? '36px' : '24px'}; height: ${isPortrait ? '10px' : '6px'}; background-color: ${type.color}; border-radius: 4px;"></div>
+                <span style="font-size: ${isPortrait ? '20px' : '14px'}; color: #334155; font-weight: bold;">${type.label}</span>
             </div>
         `;
     });
@@ -1008,7 +1016,7 @@ export default function TravelMapApp() {
         }
     };
 
-  }, [showExportPreview, exportStartDate, exportEndDate, trips, currentMapId, exportFormat]); // 加入 exportFormat
+  }, [showExportPreview, exportStartDate, exportEndDate, trips, currentMapId, exportFormat]);
 
   // ★★★ 執行截圖與下載 ★★★
   const downloadImage = useCallback(async () => {
@@ -1043,7 +1051,7 @@ export default function TravelMapApp() {
 
           const canvas = await window.html2canvas(clone, {
               useCORS: true,
-              scale: 2, 
+              scale: 1, // 已經是高解析度尺寸，不需再放大
               logging: false,
               allowTaint: true, 
               backgroundColor: '#f1f5f9',
@@ -1051,7 +1059,8 @@ export default function TravelMapApp() {
           });
 
           const link = document.createElement('a');
-          link.download = `travel-map-export-${exportFormat}-${new Date().toISOString().split('T')[0]}.png`;
+          const ext = exportFormat === 'portrait' ? 'mobile-9-16' : 'desktop-4-3';
+          link.download = `travel-map-export-${ext}-${new Date().toISOString().split('T')[0]}.png`;
           link.href = canvas.toDataURL('image/png');
           link.click();
           
@@ -1721,7 +1730,628 @@ export default function TravelMapApp() {
           </div>
           
           {/* 行動裝置版按鈕懸浮修正：在桌面版為 normal flow, 手機版為 fixed bottom */}
-          <div className="p-4 border-t bg-gray-50 md:static fixed bottom-0 left-0 w-full z-10 md:z-auto shadow-inner md:shadow-none hidden md:block">
+          <div className="p-4 border-t bg-gray-50 md:static fixed bottom-0 left-0 w-full z-10 md:z-auto shadow-inner md:shadow-none">
             <button 
               onClick={() => openModal('')}
-              className="w-full bg-blue-
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg flex items-center justify-center gap-2 shadow transition-colors font-bold text-lg"
+            >
+              <Plus size={20} /> 新增旅程
+            </button>
+          </div>
+        </div>
+
+        {!isSidebarOpen && (
+          <button 
+            onClick={() => setIsSidebarOpen(true)}
+            className="absolute top-4 left-4 z-[500] bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 hidden md:block"
+          >
+            <ChevronRight size={20} />
+          </button>
+        )}
+        
+        {/* ★★★ 手機版地圖左下角新增旅程按鈕 ★★★ */}
+        {!isSidebarOpen && (
+             <button 
+                onClick={() => openModal('')}
+                className="absolute bottom-6 left-6 z-[400] md:hidden w-14 h-14 bg-blue-600 rounded-full text-white shadow-xl flex items-center justify-center hover:bg-blue-700 active:scale-90 transition-transform"
+                title="新增旅程"
+             >
+                <Plus size={28} />
+             </button>
+        )}
+
+        {isPickingMode && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-blue-600 text-white px-6 py-3 rounded-full shadow-xl animate-bounce flex items-center gap-2 pointer-events-none w-max">
+            <MapPin size={20} />
+            <span className="font-bold">請在地圖上點擊位置</span>
+          </div>
+        )}
+
+        <div className="w-full h-full z-0 bg-slate-200 relative flex flex-col">
+          <div ref={mapContainerRef} className="flex-1 relative" />
+          
+          {/* 懸浮統計卡片 (右上角) */}
+          <div className="absolute top-4 right-4 z-[400] flex flex-col items-end pointer-events-none">
+            
+            {/* Toggle Button (Mobile Only) */}
+            <button 
+                onClick={() => setShowMobileStats(!showMobileStats)}
+                className="pointer-events-auto md:hidden bg-white p-3 rounded-full shadow-xl text-blue-600 border border-blue-100 mb-2 hover:bg-gray-50 active:scale-95 transition-transform"
+                title="顯示統計"
+            >
+                <Trophy size={20} />
+            </button>
+
+            {/* Stats Card */}
+            <div className={`
+                pointer-events-auto
+                bg-white/95 backdrop-blur p-4 rounded-xl shadow-2xl border border-white/50
+                transform transition-all duration-300 origin-top-right
+                ${showMobileStats ? 'scale-100 opacity-100 translate-y-0' : 'scale-90 opacity-0 -translate-y-4 pointer-events-none absolute right-0 top-12'}
+                md:static md:scale-100 md:opacity-100 md:translate-y-0 md:pointer-events-auto
+            `}>
+                <div className="flex items-center justify-between gap-4 mb-3 pb-2 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-yellow-100 p-1.5 rounded-full">
+                            <Trophy size={14} className="text-yellow-600" />
+                        </div>
+                        <span className="font-bold text-gray-700 text-sm">旅程足跡</span>
+                    </div>
+                    {/* 清單按鈕 */}
+                    <button 
+                        onClick={() => setIsStatsListOpen(true)}
+                        className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                    >
+                        <List size={12} /> 清單
+                    </button>
+                </div>
+                
+                <div className="space-y-3 min-w-[140px]">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">已造訪國家</span>
+                        <span className="font-bold text-lg text-blue-600">{stats.countries}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">已造訪城市</span>
+                        <span className="font-bold text-lg text-indigo-600">{stats.cities}</span>
+                    </div>
+                </div>
+            </div>
+          </div>
+
+          <div className="absolute bottom-6 right-6 z-[400] bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-xl border border-gray-200 hidden md:block">
+             <h4 className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider border-b pb-1">交通方式</h4>
+             <div className="space-y-2">
+                 <div className="grid grid-cols-5 gap-2">
+                    {Object.entries(TRANSPORT_TYPES).map(([key, type]) => (
+                        <div key={key} className="flex flex-col items-center gap-1">
+                            <div className="w-full h-1 rounded-full" style={{ backgroundColor: type.color }}></div>
+                            <span className="text-[10px] font-bold text-gray-600 text-center leading-tight">{type.label}</span>
+                        </div>
+                    ))}
+                 </div>
+             </div>
+             <div className="mt-2 pt-2 border-t text-[10px] text-gray-400 text-center">
+                 虛線代表未定/未來行程
+             </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* 統計列表 Modal */}
+      {isStatsListOpen && (
+        <div className="fixed inset-0 z-[2200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col animate-in fade-in zoom-in duration-200">
+                <div className="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-xl">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                        <Trophy size={18} className="text-yellow-600" /> 足跡清單
+                    </h3>
+                    <button onClick={() => setIsStatsListOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-200">
+                        <X size={20} />
+                    </button>
+                </div>
+                <div className="p-4 overflow-y-auto">
+                    <div className="mb-6">
+                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">已造訪國家 ({detailedStats.countryList.length})</h4>
+                        <div className="flex flex-wrap gap-2">
+                            {detailedStats.countryList.map(c => (
+                                <span key={c} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-sm border border-blue-100">
+                                    {c}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">已造訪城市 ({detailedStats.cityList.length})</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                            {detailedStats.cityList.map(c => (
+                                <div key={c} className="text-sm text-gray-700 bg-gray-50 px-2 py-1.5 rounded border border-gray-100 truncate" title={c}>
+                                    {c}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* 新增/編輯旅程 Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6 border-b pb-4">
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                  {editingId ? <Edit2 className="text-blue-600" /> : <PlusCircle className="text-blue-600" />}
+                  {editingId ? '編輯旅程' : '新增旅程'}
+                </h2>
+                <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* 地點區塊 */}
+                <div className="bg-gray-50 p-4 rounded-xl space-y-4 border border-gray-100">
+                    <h3 className="font-bold text-gray-600 flex items-center gap-2">
+                        <MapPin size={18} /> 旅程起訖點
+                    </h3>
+                    
+                    {/* 出發地 */}
+                    {renderCityInput('origin')}
+                    
+                    {/* 新增：中途轉運點 (選填) */}
+                    <div className="pl-4 border-l-2 border-dashed border-gray-300 ml-2 relative">
+                        <div className="absolute -left-[9px] top-1/2 -translate-y-1/2 bg-gray-100 text-gray-400 rounded-full p-0.5">
+                            <ArrowRight size={12} />
+                        </div>
+                        {renderCityInput('transit')}
+                    </div>
+
+                    {/* 目的地 */}
+                    {renderCityInput('dest')}
+                </div>
+
+                {/* 時間與交通 */}
+                <div className="space-y-6">
+                    {/* 時間設定 */}
+                    <div className="bg-gray-50 p-4 rounded-xl space-y-4 border border-gray-100">
+                         <h3 className="font-bold text-gray-600 flex items-center gap-2">
+                            <Calendar size={18} /> 時間設定
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">出發時間</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="date" 
+                                        required 
+                                        className="flex-1 p-2 border rounded bg-white"
+                                        value={formData.dateStart}
+                                        onChange={e => setFormData({...formData, dateStart: e.target.value})}
+                                    />
+                                    <TimeSelector value={formData.timeStart} onChange={val => setFormData({...formData, timeStart: val})} />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">抵達時間 (選填)</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="date" 
+                                        className="flex-1 p-2 border rounded bg-white"
+                                        value={formData.dateEnd}
+                                        onChange={e => setFormData({...formData, dateEnd: e.target.value})}
+                                    />
+                                    <TimeSelector value={formData.timeEnd} onChange={val => setFormData({...formData, timeEnd: val})} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 交通工具 */}
+                    <div className="bg-gray-50 p-4 rounded-xl space-y-4 border border-gray-100">
+                        <h3 className="font-bold text-gray-600 flex items-center gap-2">
+                            <Plane size={18} /> 交通方式
+                        </h3>
+                         <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">類型</label>
+                            <div className="grid grid-cols-5 gap-1">
+                                {Object.entries(TRANSPORT_TYPES).map(([key, type]) => (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => setFormData({...formData, transport: key})}
+                                        className={`flex flex-col items-center justify-center p-2 rounded border transition-all ${formData.transport === key ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-105' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                                    >
+                                        {React.createElement(type.icon, { size: 20 })}
+                                        <span className="text-[10px] mt-1">{type.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                             <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">班次/號碼</label>
+                                <div className="flex items-center bg-white border rounded px-2">
+                                    <Ticket size={14} className="text-gray-400 mr-2"/>
+                                    <input 
+                                        type="text" 
+                                        placeholder="例如: BR87"
+                                        className="w-full p-2 text-sm outline-none"
+                                        value={formData.transportNumber}
+                                        onChange={e => setFormData({...formData, transportNumber: e.target.value})}
+                                    />
+                                </div>
+                             </div>
+                             <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">座位號碼</label>
+                                <div className="flex items-center bg-white border rounded px-2">
+                                    <Armchair size={14} className="text-gray-400 mr-2"/>
+                                    <input 
+                                        type="text" 
+                                        placeholder="例如: 12A"
+                                        className="w-full p-2 text-sm outline-none"
+                                        value={formData.seatNumber}
+                                        onChange={e => setFormData({...formData, seatNumber: e.target.value})}
+                                    />
+                                </div>
+                             </div>
+                             {/* 位置選項移入此處 */}
+                             <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">位置</label>
+                                <select 
+                                    className="w-full p-2 border rounded bg-white text-sm h-[38px]"
+                                    value={formData.seatType}
+                                    onChange={e => setFormData({...formData, seatType: e.target.value})}
+                                >
+                                    <option value="" disabled>請選擇</option>
+                                    {Object.entries(SEAT_TYPES).map(([k, v]) => (
+                                        <option key={k} value={k}>{v}</option>
+                                    ))}
+                                </select>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 費用與備註 */}
+                <div className="bg-gray-50 p-4 rounded-xl space-y-4 border border-gray-100">
+                    <h3 className="font-bold text-gray-600 flex items-center gap-2">
+                        <DollarSign size={18} /> 其他資訊
+                    </h3>
+                    <div className="flex gap-4">
+                        <div className="flex-1">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">費用</label>
+                            <div className="flex">
+                                <select 
+                                    className="p-2 border rounded-l bg-gray-100 border-r-0 text-sm font-bold w-20"
+                                    value={formData.currency}
+                                    onChange={e => setFormData({...formData, currency: e.target.value})}
+                                >
+                                    {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                                </select>
+                                <input 
+                                    type="number" 
+                                    placeholder="0" 
+                                    className="w-full p-2 border rounded-r focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    value={formData.cost}
+                                    onChange={e => setFormData({...formData, cost: e.target.value})}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">備註 / 筆記</label>
+                        <div className="relative">
+                            <FileText className="absolute top-3 left-3 text-gray-400" size={16} />
+                            <textarea 
+                                className="w-full pl-10 p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none min-h-[80px]"
+                                placeholder="寫點什麼..."
+                                value={formData.notes}
+                                onChange={e => setFormData({...formData, notes: e.target.value})}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-bold hover:bg-gray-50 transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={isSaving}
+                    className="px-8 py-2.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 disabled:opacity-70 flex items-center gap-2"
+                  >
+                    {isSaving ? (
+                        <>
+                            <Loader className="animate-spin" size={18} /> 儲存中...
+                        </>
+                    ) : (
+                        <>
+                            <Check size={18} /> 儲存旅程
+                        </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 匯出設定 Modal (預覽版) */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-[2500] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col h-[90vh] animate-in fade-in zoom-in duration-200">
+                {/* Header */}
+                <div className="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-xl">
+                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                        <ImageIcon size={24} className="text-blue-600"/> 匯出地圖預覽
+                    </h2>
+                    <button onClick={() => { setIsExportModalOpen(false); setShowExportPreview(false); }} className="text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-2 rounded-full">
+                        <X size={24} />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 flex overflow-hidden">
+                    {/* 設定欄 */}
+                    <div className="w-80 border-r bg-gray-50 p-6 space-y-6 overflow-y-auto">
+                        <div className="bg-blue-100 p-4 rounded-lg text-sm text-blue-800">
+                            <p>💡 此為匯出圖片的預覽。請等待地圖圖資完全載入後，再點擊下載按鈕。</p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">版面格式</label>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setExportFormat('landscape')}
+                                    className={`flex-1 p-2 rounded border flex flex-col items-center gap-1 ${exportFormat === 'landscape' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
+                                >
+                                    <Monitor size={20} />
+                                    <span className="text-xs">電腦 (4:3)</span>
+                                </button>
+                                <button
+                                    onClick={() => setExportFormat('portrait')}
+                                    className={`flex-1 p-2 rounded border flex flex-col items-center gap-1 ${exportFormat === 'portrait' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
+                                >
+                                    <Smartphone size={20} />
+                                    <span className="text-xs">手機 (9:16)</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">設定日期區間</label>
+                            <div className="space-y-2">
+                                <div>
+                                    <label className="text-xs text-gray-500 block mb-1">開始日期</label>
+                                    <input 
+                                        type="date" 
+                                        className="w-full p-2 border rounded"
+                                        value={exportStartDate}
+                                        onChange={(e) => setExportStartDate(e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 block mb-1">結束日期</label>
+                                    <input 
+                                        type="date" 
+                                        className="w-full p-2 border rounded"
+                                        value={exportEndDate}
+                                        onChange={(e) => setExportEndDate(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {(exportStartDate || exportEndDate) && (
+                            <button 
+                                onClick={() => { setExportStartDate(''); setExportEndDate(''); }}
+                                className="text-xs text-blue-600 hover:underline"
+                            >
+                                清除日期 (匯出全部)
+                            </button>
+                        )}
+                        
+                        <div className="pt-6 border-t">
+                            <button 
+                                onClick={downloadImage}
+                                disabled={isCapturing}
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-wait"
+                            >
+                                {isCapturing ? (
+                                    <>
+                                        <Loader className="animate-spin" size={18} />
+                                        處理中...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download size={18} />
+                                        下載圖片
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 預覽區 (4:3) */}
+                    <div className="flex-1 bg-slate-200 flex items-center justify-center p-8 overflow-hidden relative">
+                        {/* 這個 div 是用來掛載預覽地圖的 */}
+                        <div 
+                            style={{ width: '480px', height: '480px', position: 'relative', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }} 
+                        >
+                            <div ref={exportPreviewRef} className="w-full h-full bg-white relative overflow-hidden flex items-center justify-center" />
+                            
+                            {/* Loading Overlay within preview */}
+                            {isCapturing && (
+                                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-50 flex items-center justify-center">
+                                    <span className="font-bold text-blue-800">截圖中...</span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="absolute bottom-4 text-xs text-gray-500">
+                            預覽已縮小顯示，實際下載為高解析度圖片
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* ID 輸入 Modal - 分頁設計 */}
+      {isIdModalOpen && (
+          <div className="fixed inset-0 z-[3000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
+              
+              {/* Tabs */}
+              <div className="flex border-b">
+                <button 
+                  onClick={() => { setIdMode('enter'); setIdError(''); }}
+                  className={`flex-1 py-4 font-bold text-center transition-colors ${idMode === 'enter' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <LogIn size={18} /> 進入我的地圖
+                  </div>
+                </button>
+                <button 
+                  onClick={() => { setIdMode('create'); setIdError(''); }}
+                  className={`flex-1 py-4 font-bold text-center transition-colors ${idMode === 'create' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <PlusCircle size={18} /> 建立新地圖
+                  </div>
+                </button>
+              </div>
+
+              <div className="p-8">
+                <div className="text-center mb-6">
+                  <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+                    <Globe size={32} />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    {idMode === 'enter' ? '歡迎回來！' : '開始新的旅程'}
+                  </h2>
+                  <p className="text-gray-500 mt-2 text-sm">
+                    {idMode === 'enter' 
+                      ? '請輸入 ID 與密碼以進入您的地圖' 
+                      : '請設定專屬 ID 與密碼來建立新地圖'}
+                  </p>
+                </div>
+                
+                <form onSubmit={handleIdSubmit} className="space-y-4">
+                  {/* ID Input */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">地圖 ID (英文或數字)</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="例如: my-trip-2025"
+                      className={`w-full p-4 border-2 rounded-xl text-lg outline-none transition-colors ${idError ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-blue-500'}`}
+                      value={tempMapIdInput}
+                      onChange={(e) => {
+                          setTempMapIdInput(e.target.value);
+                          setIdError('');
+                      }}
+                    />
+                  </div>
+
+                  {/* Password Input */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">
+                      {idMode === 'enter' ? '輸入密碼' : '設定密碼 (4-6位數字)'}
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                      <input 
+                        type={showPassword ? "text" : "password"} 
+                        required
+                        placeholder="••••••"
+                        maxLength={6}
+                        className={`w-full pl-12 pr-12 p-4 border-2 rounded-xl text-lg outline-none transition-colors ${idError ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-blue-500'}`}
+                        value={tempPasswordInput}
+                        onChange={(e) => {
+                            // Only allow numbers
+                            const val = e.target.value.replace(/\D/g, '');
+                            setTempPasswordInput(val);
+                            setIdError('');
+                        }}
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* 記住密碼 Checkbox */}
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      id="rememberMe"
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                    />
+                    <label htmlFor="rememberMe" className="text-sm text-gray-600 cursor-pointer select-none">記住 ID 與密碼 (下次自動登入)</label>
+                  </div>
+
+                  {idError && <p className="text-red-500 text-sm font-bold text-center bg-red-50 p-2 rounded">{idError}</p>}
+                  
+                  <button 
+                    type="submit"
+                    disabled={isCheckingId}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isCheckingId ? <Loader className="animate-spin" /> : (idMode === 'enter' ? '進入地圖 ➔' : '建立地圖 🚀')}
+                  </button>
+                </form>
+                
+                <div className="mt-6 text-center bg-blue-50 p-3 rounded-lg">
+                  <p className="text-xs text-blue-600 font-medium">
+                    💡 請牢記您的 ID 與密碼，遺失無法找回！
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+      )}
+
+      {/* 刪除確認 Modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[2100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 animate-in fade-in zoom-in duration-200 text-center">
+            <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4 text-red-600">
+              <AlertTriangle size={24} />
+            </div>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">確定要刪除這筆紀錄嗎？</h3>
+            <p className="text-sm text-gray-500 mb-6">刪除後將無法復原，您確定要繼續嗎？</p>
+            <div className="flex gap-3 justify-center">
+              <button 
+                onClick={() => setDeleteConfirmId(null)}
+                className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button 
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow transition-colors"
+              >
+                確認刪除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
