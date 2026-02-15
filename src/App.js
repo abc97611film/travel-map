@@ -353,7 +353,6 @@ export default function TravelMapApp() {
 
   const [stats, setStats] = useState({ countries: 0, cities: 0 });
   const [detailedStats, setDetailedStats] = useState({ countryList: [], cityList: [] }); 
-  const [showMobileStats, setShowMobileStats] = useState(false); // Used for rendering logic check in JSX
   const [isStatsListOpen, setIsStatsListOpen] = useState(false); 
 
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
@@ -708,6 +707,7 @@ export default function TravelMapApp() {
       } finally { setIsCapturing(false); }
   }, []);
 
+  // ★★★ 地圖預覽與繪製邏輯 (優化手機版匯出 9:16) ★★★
   useEffect(() => {
     if (!showExportPreview || !exportPreviewRef.current || !window.L) return;
     exportPreviewRef.current.innerHTML = '';
@@ -922,7 +922,6 @@ export default function TravelMapApp() {
             } else {
                 L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(exportMap);
                 polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
-                layersRef.current.push(p1);
             }
             bounds.extend([trip.transitLat, trip.transitLng]);
         } else {
@@ -971,7 +970,7 @@ export default function TravelMapApp() {
     container.appendChild(legend);
     container._exportMap = exportMap;
     return () => { if (container._exportMap) { container._exportMap.remove(); } };
-  }, [showExportPreview, exportStartDate, exportEndDate, trips, currentMapId, downloadImage]); // Added downloadImage dependency to fix warning, though not strictly needed here as it's used inside the component not this effect. But `downloadImage` is defined before. Wait, `downloadImage` is defined BEFORE this effect? No, it's defined BEFORE. Good.
+  }, [showExportPreview, exportStartDate, exportEndDate, trips, currentMapId, downloadImage]);
 
   const fetchCitiesForCountry = useCallback(async (country, type) => {
     if (!country) return;
@@ -1113,26 +1112,29 @@ export default function TravelMapApp() {
         if (trip.transitLat && trip.transitLng) {
             if (trip.transport === 'plane') {
                 const curvedPoints1 = getGreatCirclePoints(trip.originLat, trip.originLng, trip.transitLat, trip.transitLng);
-                L.polyline(curvedPoints1, lineOptions).addTo(exportMap);
+                const p1 = L.polyline(curvedPoints1, lineOptions).addTo(map);
                 const curvedPoints2 = getGreatCirclePoints(trip.transitLat, trip.transitLng, trip.destLat, trip.destLng);
-                polyline = L.polyline(curvedPoints2, lineOptions).addTo(exportMap);
+                polyline = L.polyline(curvedPoints2, lineOptions).addTo(map);
+                layersRef.current.push(p1);
             } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
-                polyline = L.polyline(trip.routePath, lineOptions).addTo(exportMap);
+                polyline = L.polyline(trip.routePath, lineOptions).addTo(map);
             } else {
-                L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(exportMap);
-                polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
+                const p1 = L.polyline([[trip.originLat, trip.originLng], [trip.transitLat, trip.transitLng]], lineOptions).addTo(map);
+                polyline = L.polyline([[trip.transitLat, trip.transitLng], [trip.destLat, trip.destLng]], lineOptions).addTo(map);
                 layersRef.current.push(p1);
             }
         } else {
             if (trip.transport === 'plane') {
                  const curvedPoints = getGreatCirclePoints(trip.originLat, trip.originLng, trip.destLat, trip.destLng);
-                 polyline = L.polyline(curvedPoints, lineOptions).addTo(exportMap);
+                 polyline = L.polyline(curvedPoints, lineOptions).addTo(map);
             } else if (typeConfig.useRoute && trip.routePath && trip.routePath.length > 0) {
-                polyline = L.polyline(trip.routePath, lineOptions).addTo(exportMap);
+                polyline = L.polyline(trip.routePath, lineOptions).addTo(map);
             } else {
-                polyline = L.polyline([[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]], lineOptions).addTo(exportMap);
+                const straightLatLngs = [[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]];
+                polyline = L.polyline(straightLatLngs, lineOptions).addTo(map);
             }
         }
+
         if (polyline) polyline.bringToFront();
         const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
         const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
@@ -1361,7 +1363,6 @@ export default function TravelMapApp() {
         <div className="w-full h-full z-0 bg-slate-200 relative flex flex-col">
           <div ref={mapContainerRef} className="flex-1 relative" />
           
-          {/* ★★★ 修改：手機版與電腦版皆顯示固定浮動卡片，移除 Toggle Button ★★★ */}
           <div className="absolute top-4 right-4 z-[400] flex flex-col items-end pointer-events-none pt-[env(safe-area-inset-top,0px)]">
             <div className={`pointer-events-auto bg-white/95 backdrop-blur p-4 rounded-xl shadow-2xl border border-white/50 transform transition-all duration-300 origin-top-right scale-100 opacity-100 translate-y-0`}>
                 <div className="flex items-center justify-between gap-4 mb-3 pb-2 border-b border-gray-100"><div className="flex items-center gap-2"><div className="bg-yellow-100 p-1.5 rounded-full"><Trophy size={14} className="text-yellow-600" /></div><span className="font-bold text-gray-700 text-sm">旅程足跡</span></div><button onClick={() => setIsStatsListOpen(true)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded transition-colors flex items-center gap-1"><List size={12} /> 清單</button></div>
