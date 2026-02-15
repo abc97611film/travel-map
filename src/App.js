@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, onSnapshot, query, deleteDoc, doc, serverTimestamp, orderBy, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
-import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy, List, Share, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plane, Train, Bus, Ship, Car, MapPin, DollarSign, Trash2, Plus, X, Globe, ChevronLeft, ChevronRight, Check, Armchair, FileText, Ticket, RefreshCw, AlertTriangle, Menu, Loader, Edit2, Share2, LogOut, Lock, LogIn, PlusCircle, Eye, EyeOff, Map, Calendar, Download, Image as ImageIcon, ArrowRight, Trophy, List, ChevronUp, ChevronDown } from 'lucide-react';
 
 // 注意：我們使用 CDN 動態載入 Leaflet 與 html2canvas，以相容預覽環境與本機環境
 
@@ -935,8 +935,9 @@ export default function TravelMapApp() {
         
         if (polyline) polyline.bringToFront();
 
-        const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: isMobileExport ? 8 : 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
-        const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: isMobileExport ? 8 : 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
+        // Fixed: removed assignment to unused variables originMarker and destMarker
+        L.circleMarker([trip.originLat, trip.originLng], { radius: isMobileExport ? 8 : 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
+        L.circleMarker([trip.destLat, trip.destLng], { radius: isMobileExport ? 8 : 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
       }
     });
 
