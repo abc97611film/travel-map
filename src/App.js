@@ -935,8 +935,8 @@ export default function TravelMapApp() {
         
         if (polyline) polyline.bringToFront();
 
-        const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
-        const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
+        const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: isMobileExport ? 8 : 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
+        const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: isMobileExport ? 8 : 5, color: typeConfig.color, fillOpacity: 1 }).addTo(exportMap);
       }
     });
 
@@ -1109,7 +1109,7 @@ export default function TravelMapApp() {
         if (trip.transitLat && trip.transitLng) {
             if (trip.transport === 'plane') {
                 const curvedPoints1 = getGreatCirclePoints(trip.originLat, trip.originLng, trip.transitLat, trip.transitLng);
-                const p1 = L.polyline(curvedPoints1, lineOptions).addTo(map);
+                L.polyline(curvedPoints1, lineOptions).addTo(map);
                 const curvedPoints2 = getGreatCirclePoints(trip.transitLat, trip.transitLng, trip.destLat, trip.destLng);
                 polyline = L.polyline(curvedPoints2, lineOptions).addTo(map);
                 layersRef.current.push(p1);
@@ -1130,6 +1130,23 @@ export default function TravelMapApp() {
                 polyline = L.polyline([[trip.originLat, trip.originLng], [trip.destLat, trip.destLng]], lineOptions).addTo(map);
             }
         }
+        
+        if (polyline) polyline.bringToFront();
+
+        const originMarker = L.circleMarker([trip.originLat, trip.originLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
+        const destMarker = L.circleMarker([trip.destLat, trip.destLng], { radius: 4, color: typeConfig.color, fillOpacity: 1 }).addTo(map);
+        
+        const dateDisplay = trip.dateStart ? `${safeDateDisplay(trip.dateStart)} ${trip.timeStart || ''}` : '';
+        const popupContent = `
+          <div class="font-sans min-w-[200px]">
+            <h3 class="font-bold text-lg mb-1">${trip.originCity} ➝ ${trip.destCity}</h3>
+            ${trip.transitCity ? `<div class="text-xs text-gray-500 mb-1">經由: ${trip.transitCity}</div>` : ''}
+            <div class="text-sm text-gray-700 space-y-1">
+              <p><span style="color:${typeConfig.color}">●</span> ${typeConfig.label} | ${dateDisplay}</p>
+              ${trip.cost ? `<p>費用: ${trip.currency} ${trip.cost}</p>` : ''}
+            </div>
+          </div>
+        `;
         
         if (polyline) polyline.bindPopup(popupContent);
         // Fix for binding popup to previous segment
