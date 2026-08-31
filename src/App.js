@@ -790,7 +790,7 @@ export default function TravelMapApp() {
         zoomAnimation: false
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
         crossOrigin: 'anonymous', // 重要：允許跨域截圖
         attribution: ''
     }).addTo(exportMap);
@@ -1335,7 +1335,11 @@ export default function TravelMapApp() {
     if (!libLoaded || mapInstanceRef.current || !mapContainerRef.current) return;
     const L = window.L;
     const map = L.map(mapContainerRef.current, { preferCanvas: true }).setView([48, 15], 4); 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 19, crossOrigin: true }).addTo(map);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { 
+        attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ', 
+        maxZoom: 16, 
+        crossOrigin: true 
+    }).addTo(map);
     mapInstanceRef.current = map;
     setMapLoaded(true);
 
